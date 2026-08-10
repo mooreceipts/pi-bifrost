@@ -80,7 +80,8 @@ export function formatBifrostStatus(state: { enabled: boolean; pinned: boolean; 
   const pin = state.pinned ? "\x1b[33mpinned\x1b[0m" : "\x1b[90munpinned\x1b[0m";
   const sil = state.silent ? "\x1b[36msilence\x1b[0m" : "\x1b[32munsilence\x1b[0m";
   const tilde = "\x1b[90m~\x1b[0m";
-  return `\x1b[90m⚡ bifrost:\x1b[0m ${routing} ${tilde} ${pin} ${tilde} ${sil}`;
+  const rainbow = "\x1b[31mb\x1b[38;5;208mi\x1b[33mf\x1b[32mr\x1b[34mo\x1b[38;5;93ms\x1b[35mt\x1b[0m";
+  return `${rainbow}\x1b[90m:\x1b[0m ${routing} ${tilde} ${pin} ${tilde} ${sil}`;
 }
 
 export function setBifrostModeStatus(ctx: ExtensionContext, state: BifrostModeState): void {
