@@ -31,7 +31,7 @@ import {
 import { QuotaStore } from "./quota.js";
 import { ReliabilityStore } from "./reliability-store.js";
 import { loadRuntimeState, runtimeStatePath, saveRuntimeState } from "./runtime-state.js";
-import { createCommandRouter, getBifrostCommandCompletions, log, uiBusy, uiDone, setBifrostSilent, syncBifrostModeStatus, clearBifrostWidgets, type BifrostState } from "./commands.js";
+import { createCommandRouter, getBifrostCommandCompletions, log, logOverwrite, uiBusy, uiDone, setBifrostSilent, syncBifrostModeStatus, clearBifrostWidgets, type BifrostState } from "./commands.js";
 import { setupDebug, debug, debugMeasure } from "./debug.js";
 import { parseInlineOverride } from "./inline-override.js";
 import { RuntimeReliabilityTracker } from "./runtime-reliability.js";
@@ -236,7 +236,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     debug("bifrost", "model_select", { model: modelKey(ctx.model) });
     syncBifrostModeStatus(ctx, state);
     clearBifrostWidgets(ctx);
-    log(
+    logOverwrite(
       ctx,
       `Model manually changed to ${modelKey(ctx.model)}; Bifrost pinned.`,
     );
@@ -297,7 +297,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
           endRefresh();
         } catch (err) {
           debug("input", "registry.refresh.error", { error: String(err) });
-          console.error(`[bifrost] model registry refresh failed: ${err}`);
+          log(ctx, `model registry refresh failed: ${String(err).slice(0, 200)}`, "warning");
         }
       }
 
@@ -311,7 +311,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
 
       if (classification.kind === "classified") {
         const tag = classification.source === "inline" ? "!" : classification.source;
-        console.error(`[bifrost] classify: ${classification.tier} [${tag}]`);
+        log(ctx, `classify: ${classification.tier} [${tag}]`);
       }
 
       void quotaStore.refreshIfStale(Date.now());

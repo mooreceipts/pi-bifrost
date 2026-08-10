@@ -60,18 +60,39 @@ function isBifrostSilent(ctx: ExtensionContext): boolean {
   return silentContexts.has(ctx);
 }
 
+let overwriteActive = false;
+
+export function logOverwrite(
+  ctx: ExtensionContext,
+  message: string,
+): void {
+  if (isBifrostSilent(ctx)) return;
+  process.stderr.write(`\r\x1b[2K[bifrost] ${message}`);
+  overwriteActive = true;
+  if (ctx.hasUI) ctx.ui.notify(message, "info");
+}
+
+export function finalizeOverwrite(): void {
+  if (overwriteActive) {
+    process.stderr.write("\n");
+    overwriteActive = false;
+  }
+}
+
 export function log(
   ctx: ExtensionContext,
   message: string,
   type?: "info" | "warning" | "error",
 ) {
   if (isBifrostSilent(ctx)) return;
+  finalizeOverwrite();
   console.error(`[bifrost] ${message}`);
   if (ctx.hasUI) ctx.ui.notify(message, type ?? "info");
 }
 
 export function uiBusy(ctx: ExtensionContext, message: string) {
   if (isBifrostSilent(ctx)) return;
+  finalizeOverwrite();
   if (ctx.mode === "tui" && ctx.hasUI) {
     ctx.ui.setWorkingMessage(message);
     ctx.ui.setWorkingVisible(true);
@@ -89,6 +110,7 @@ export function uiDone(ctx: ExtensionContext) {
 
 function uiOutput(ctx: ExtensionContext, lines: string[]) {
   if (isBifrostSilent(ctx)) return;
+  finalizeOverwrite();
   if (ctx.mode === "tui" && ctx.hasUI) {
     ctx.ui.setWidget("bifrost-output", lines);
   } else {
@@ -98,6 +120,7 @@ function uiOutput(ctx: ExtensionContext, lines: string[]) {
 
 async function uiResult(ctx: ExtensionContext, title: string, lines: string[]): Promise<void> {
   if (isBifrostSilent(ctx)) return;
+  finalizeOverwrite();
   if (await showBifrostResult(ctx, title, lines)) return;
   for (const line of lines) console.error(`[bifrost] ${line}`);
 }
