@@ -1,8 +1,6 @@
 # Bifrost
 
-![Pi-Bifrost social card](docs/social-card.png)
-
-Pi-Pifrost 1.0.0 is **native model routing for [Pi](https://pi.dev)**. Before generation starts, it switches Pi's actual active model to one from your configuration.
+Pi-Bifrost is **native model routing for [Pi](https://pi.dev)**. Before generation starts, it switches Pi's actual active model to one from your configuration.
 
 ```text
 "summarize this file"         → your quick model
@@ -27,14 +25,14 @@ pi install npm:pi-bifrost
 Or install this fork from source:
 
 ```bash
-pi install git:github.com/mooreceipts/pi-pifrost
+pi install git:github.com/mooreceipts/pi-bifrost
 ```
 
 ## Attribution
 
-Pi-Pifrost is a fork and continuation of [Pi-Bifrost](https://github.com/iamaamir/pi-bifrost), originally created by [Aamir (`@iamaamir`)](https://github.com/iamaamir). Original architecture, routing foundation, reliability work, documentation, and project identity remain credited to that project and author.
+Pi-bifrost is a fork and continuation of [Pi-Bifrost](https://github.com/iamaamir/pi-bifrost), originally created by [Aamir (`@iamaamir`)](https://github.com/iamaamir). Original architecture, routing foundation, reliability work, documentation, and project identity remain credited to that project and author.
 
-This fork adds subscription-aware model steering, independent `--scoped` / `--free` model discovery, and related tests/documentation. Repository branding is Pi-Pifrost; npm package name remains `pi-bifrost` for compatibility. See [NOTICE.md](NOTICE.md) and [CHANGELOG.md](CHANGELOG.md).
+This fork adds subscription-aware model steering, independent `--scoped` / `--free` model discovery, and related tests/documentation. Repository branding is Pi-bifrost; npm package name remains `pi-bifrost` for compatibility. See [NOTICE.md](NOTICE.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ## Setup
 

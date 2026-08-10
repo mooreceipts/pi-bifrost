@@ -26,7 +26,7 @@ All notable changes to pi-bifrost are documented here.
 - Subscription-balanced frontier example and explicit original-project attribution.
 
 ### Changed
-- Repository metadata now targets `mooreceipts/pi-pifrost` while crediting original author Aamir and `iamaamir/pi-bifrost`.
+- Repository metadata now targets `mooreceipts/pi-bifrost` while crediting original author Aamir and `iamaamir/pi-bifrost`.
 - Schema, README, ROADMAP, examples, generated init/update behavior, and package version updated for 1.0.0.
 
 ## [0.2.0] - UNRELEASED

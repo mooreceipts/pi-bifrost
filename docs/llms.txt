@@ -1,12 +1,12 @@
-# Pi-Pifrost 1.0.0
+# Pi-bifrost 1.0.0
 
 > Query-aware model routing extension for the Pi coding agent.
 
-Pi-Pifrost classifies prompts into configured tiers, selects an available model, and switches Pi's active model before sending. It is designed for predictable, inspectable routing with manual overrides and safe fallbacks.
+Pi-bifrost classifies prompts into configured tiers, selects an available model, and switches Pi's active model before sending. It is designed for predictable, inspectable routing with manual overrides and safe fallbacks.
 
 ## Links
 
-- Source and documentation: https://github.com/mooreceipts/pi-pifrost
+- Source and documentation: https://github.com/mooreceipts/pi-bifrost
 - Original project: https://github.com/iamaamir/pi-bifrost by Aamir
 - npm package: https://www.npmjs.com/package/pi-bifrost
 - License: https://opensource.org/license/mit
