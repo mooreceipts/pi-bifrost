@@ -1,0 +1,16 @@
+tests/
+scripts/release.mjs
+scripts/ui-smoke.py
+scripts/__pycache__
+tsconfig.json
+.git/
+.github/
+.pi/
+screenshots/
+docs/
+vscode/
+.idea/
+.vscode/
+.amq-bridge/
+.amqrc
+.pi-subagents/

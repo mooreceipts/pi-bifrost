@@ -1,0 +1,54 @@
+{
+  "name": "pi-bifrost",
+  "version": "0.3.12",
+  "description": "Query-aware model routing extension for Pi. Select models by task complexity, cost, context, speed, or configured order.",
+  "type": "module",
+  "license": "MIT",
+  "author": {
+    "name": "Aamir",
+    "url": "https://github.com/iamaamir"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iamaamir/pi-bifrost.git"
+  },
+  "homepage": "https://iamaamir.github.io/pi-bifrost/",
+  "bugs": {
+    "url": "https://github.com/iamaamir/pi-bifrost/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "model-router",
+    "model-routing",
+    "developer-tools",
+    "llm",
+    "ai",
+    "coding-agent"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "minPiVersion": "0.80.8",
+    "image": "https://iamaamir.github.io/pi-bifrost/social-card.png"
+  },
+  "scripts": {
+    "test": "node --test --experimental-strip-types \"tests/*.test.ts\" \"tests/*.test.mjs\"",
+    "test:integration": "node --test --experimental-strip-types tests/integration/integration.test.mjs",
+    "test:ui": "python3 scripts/ui-smoke.py",
+    "test:ui:agent-tui": "bash scripts/ui-smoke-agent-tui.sh",
+    "test:ui:reliability": "bash scripts/ui-reliability-fake-provider.sh",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "release": "node --experimental-strip-types scripts/release.mjs"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "agent-tui": "^1.1.0"
+  }
+}

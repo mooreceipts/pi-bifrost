@@ -1,0 +1,44 @@
+{
+  "$schema": "./schema.json",
+  "enabled": true,
+  "default": "general",
+  "strategy": "first",
+
+  "categoryStrategies": {
+    "quick": "random",
+    "general": "first",
+    "frontier": "first"
+  },
+
+  "classifier": {
+    "enabled": true,
+    "model": "opencode/deepseek-v4-flash-free",
+    "method": "auto",
+    "maxTokens": 20,
+    "temperature": 0,
+    "fallbackToRegex": true
+  },
+
+  "cache": {
+    "enabled": true,
+    "maxEntries": 500,
+    "threshold": 0.88
+  },
+
+  "reliability": {
+    "enabled": true,
+    "failureThreshold": 3,
+    "windowMinutes": 5,
+    "cooldownMinutes": 60
+  },
+
+  "debug": {
+    "enabled": false
+  },
+
+  "models": {
+    "quick": [],
+    "general": [],
+    "frontier": []
+  }
+}

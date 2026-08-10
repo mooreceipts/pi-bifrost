@@ -1,0 +1,12 @@
+node_modules/
+*.log
+.DS_Store
+package-lock.json
+.pi/
+screenshots/
+.amq-bridge/
+.amqrc
+.pi-subagents/
+.plan/
+docs/adr/*
+docs/adr/*
