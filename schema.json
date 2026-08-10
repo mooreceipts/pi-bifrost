@@ -18,8 +18,8 @@
     },
     "strategy": {
       "type": "string",
-      "enum": ["first", "cheapest", "cheapest_input", "cheapest_output", "largest_context", "random", "fastest"],
-      "description": "Model selection strategy. 'first'/'fastest' picks first candidate (list should be pre-sorted). 'cheapest' sorts by input+output cost. 'cheapest_input' by input cost. 'cheapest_output' by output cost. 'largest_context' by context window. 'random' picks randomly.",
+      "enum": ["first", "cheapest", "cheapest_input", "cheapest_output", "largest_context", "random", "fastest", "subscription_balance"],
+      "description": "Model selection strategy. 'first'/'fastest' picks first candidate (list should be pre-sorted). 'cheapest' sorts by input+output cost. 'cheapest_input' by input cost. 'cheapest_output' by output cost. 'largest_context' by context window. 'random' picks randomly. 'subscription_balance' weighs subscription-provider candidates by weekly usage remaining (see quotaRouting).",
       "default": "first"
     },
     "categoryStrategies": {
@@ -28,7 +28,7 @@
       "default": { "quick": "random", "general": "first", "frontier": "first" },
       "additionalProperties": {
         "type": "string",
-        "enum": ["first", "cheapest", "cheapest_input", "cheapest_output", "largest_context", "random", "fastest"]
+        "enum": ["first", "cheapest", "cheapest_input", "cheapest_output", "largest_context", "random", "fastest", "subscription_balance"]
       }
     },
     "models": {
@@ -74,9 +74,79 @@
     },
     "reliability": {
       "$ref": "#/definitions/ReliabilityConfig"
+    },
+    "discovery": {
+      "$ref": "#/definitions/DiscoveryConfig"
+    },
+    "quotaRouting": {
+      "$ref": "#/definitions/QuotaRoutingConfig"
     }
   },
   "definitions": {
+    "QuotaRoutingConfig": {
+      "type": "object",
+      "description": "Subscription-aware frontier weighting. Only meaningful when a tier uses the 'subscription_balance' strategy. Reads weekly quota telemetry for Codex and Antigravity, biases toward the subscription provider with more remaining allowance, and keeps paid OpenRouter candidates out of the running while any subscription allowance remains above reservePercent.",
+      "additionalProperties": false,
+      "properties": {
+        "reservePercent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fraction of weekly allowance treated as exhausted (default 0.03). Paid OpenRouter candidates stay blocked while any subscription is above this.",
+          "default": 0.03
+        },
+        "gamma": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Exponent shaping quota bias (default 3). Higher favors the provider with more remaining allowance harder.",
+          "default": 3
+        },
+        "staleMinutes": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Snapshot older than this is treated as no data (minutes, default 15).",
+          "default": 15
+        },
+        "refreshMinutes": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Minimum interval between background quota refreshes (minutes, default 30).",
+          "default": 30
+        },
+        "providers": {
+          "type": "object",
+          "description": "Static per-provider quota overrides; pinned values always win over live telemetry. Keys are provider names.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "weeklyRemainingFraction": { "type": "number", "minimum": 0, "maximum": 1 },
+              "hoursToReset": { "type": "number", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "DiscoveryConfig": {
+      "type": "object",
+      "description": "Bifrost-owned discovery metadata. Update commands use it to avoid changing manual model entries.",
+      "required": ["managed"],
+      "additionalProperties": false,
+      "properties": {
+        "managed": {
+          "type": "object",
+          "description": "Canonical provider/model keys created by discovery and their owning sources.",
+          "additionalProperties": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": ["scoped", "free"]
+            }
+          }
+        }
+      }
+    },
     "RouteRule": {
       "type": "object",
       "required": ["pattern", "model"],

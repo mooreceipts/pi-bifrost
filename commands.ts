@@ -4,12 +4,20 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { join } from "node:path";
 import { loadRuntimeState, runtimeStatePath } from "./runtime-state.ts";
 import type { BifrostConfig } from "./config.ts";
-import { DEFAULT_RULES, loadConfig } from "./config.ts";
+import { DEFAULT_RULES, loadConfig, readJson } from "./config.ts";
 import type { CacheEntry } from "./cache.ts";
 import { cachePath, loadCache, saveCache, DEFAULT_MAX_ENTRIES, DEFAULT_THRESHOLD } from "./cache.ts";
 import type { ClassificationPipeline } from "./classification-pipeline.ts";
 import { setupDebug, debug, debugMeasure } from "./debug.ts";
 import { runProbe, PROBE_PROMPT_TEXT } from "./probe.ts";
+import {
+  buildDiscoveryMetadata,
+  discoverModels,
+  parseDiscoveryOptions,
+  reconcileDiscoveredModels,
+  type DiscoveryOptions,
+  type DiscoveryResult,
+} from "./discovery.ts";
 import { setBifrostModeStatus, setBifrostStatus } from "./ux-status.ts";
 import { showBifrostResult } from "./result-viewer.ts";
 import {
@@ -175,6 +183,7 @@ export function buildInitProposal(
   models: Record<string, string[]>,
   classifierModel: string,
   extensionDir: string,
+  discovery?: BifrostConfig["discovery"],
 ): Record<string, unknown> {
   const tierKeys = Object.keys(models);
   // Pick the first populated tier as default, or fall back to first key.
@@ -196,7 +205,62 @@ export function buildInitProposal(
     },
     models,
     rules: DEFAULT_RULES,
+    ...(discovery ? { discovery } : {}),
   };
+}
+
+// ── Discovery helpers ───────────────────────────────────────
+
+function usesDiscovery(options: DiscoveryOptions): boolean {
+  return options.scoped || options.free;
+}
+
+function discoverySourceLine(discovery: DiscoveryResult): string {
+  const scoped = discovery.sourceModels.scoped?.length ?? 0;
+  const free = discovery.sourceModels.free?.length ?? 0;
+  return `scoped=${scoped}, free=${free}, deduplicated=${discovery.duplicateCount}`;
+}
+
+async function refreshAndDiscover(
+  ctx: ExtensionContext,
+  state: BifrostState,
+  options: DiscoveryOptions,
+): Promise<DiscoveryResult> {
+  uiBusy(ctx, "Refreshing Pi model registry...");
+  try {
+    await ctx.modelRegistry.refresh();
+    state.lastRegistryRefreshAt = Date.now();
+    state.forceRegistryRefresh = false;
+    state.invalidatePipeline();
+  } catch (err) {
+    log(ctx, `Model registry refresh failed; using current snapshot: ${String(err).slice(0, 200)}`, "warning");
+  } finally {
+    uiDone(ctx);
+  }
+
+  const discovery = discoverModels(ctx, options);
+  for (const message of discovery.messages) log(ctx, message, "warning");
+  log(ctx, `Discovery sources: ${discoverySourceLine(discovery)}.`);
+  for (const item of discovery.skipped) log(ctx, `Skipped: ${item}.`, "warning");
+  return discovery;
+}
+
+function writeAndReloadConfig(config: BifrostConfig, state: BifrostState): void {
+  const dir = join(process.cwd(), CONFIG_DIR_NAME);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "bifrost.json"), JSON.stringify(config, null, 2));
+
+  state.config = loadConfig(process.cwd(), state.extensionDir);
+  const runtimeState = loadRuntimeState(runtimeStatePath(process.cwd()), {
+    enabled: state.config.enabled ?? true,
+    pinned: false,
+    classifierEnabled: state.config.classifier?.enabled ?? true,
+  });
+  state.enabled = runtimeState.enabled;
+  state.pinned = runtimeState.pinned;
+  state.classifierEnabled = runtimeState.classifierEnabled;
+  state.reliabilityStore.reload(state.config.reliability, process.cwd());
+  state.invalidatePipeline();
 }
 
 // ── Command handlers ────────────────────────────────────────
@@ -208,13 +272,25 @@ async function handleInit(
 ): Promise<void> {
   clearBifrostWidgets(ctx);
 
-  // Try to load cached probe results. If stale or missing, run probe inline.
+  const discoveryOptions = parseDiscoveryOptions(args);
+  const discoveryEnabled = usesDiscovery(discoveryOptions);
+  const discovery = discoveryEnabled
+    ? await refreshAndDiscover(ctx, state, discoveryOptions)
+    : undefined;
+  const selectedModels = discovery?.candidates;
+
+  if (discoveryEnabled && selectedModels?.length === 0) {
+    log(ctx, "Discovery returned no candidates; config not changed.", "error");
+    return;
+  }
+
+  // Keep legacy cached-probe behavior only when no discovery flags are used.
   const probePath = join(process.cwd(), ".pi", "bifrost-probe.json");
   let workingModels: { provider: string; model: string; cost: { input: number; output: number }; duration_ms: number }[] = [];
   let probeLoaded = false;
   let probeAge = "";
 
-  if (existsSync(probePath)) {
+  if (!discoveryEnabled && existsSync(probePath) && !statSync(probePath).isDirectory()) {
     try {
       const probeData = JSON.parse(readFileSync(probePath, "utf-8"));
       const probeStat = statSync(probePath);
@@ -240,9 +316,9 @@ async function handleInit(
 
   // If no fresh probe data, run probe inline.
   if (!probeLoaded) {
-    const available = ctx.modelRegistry.getAvailable();
+    const available = selectedModels ?? ctx.modelRegistry.getAvailable();
     const availableCount = available.length;
-    log(ctx, `Probing ${availableCount} models to find working ones...`);
+    log(ctx, `Probing ${availableCount} discovered model(s) to find working ones...`);
     let okCount = 0;
     let errCount = 0;
     const lastModels: string[] = [];
@@ -250,6 +326,7 @@ async function handleInit(
     uiBusy(ctx, `Probing ${availableCount} models...`);
     const { results } = await runProbe(ctx, (done, total, last) => {
       if (last.status === "ok") okCount++;
+      // models parameter passed below
       else if (last.status === "error" || last.status === "timeout") errCount++;
       lastModels.push(`${last.provider}/${last.model}: ${last.status} (${last.duration_ms}ms)`);
       if (lastModels.length > 5) lastModels.shift();
@@ -262,7 +339,7 @@ async function handleInit(
           ...lastModels,
         ]);
       }
-    });
+    }, undefined, available);
     uiDone(ctx);
     state.reliabilityStore.applyOutcomes(
       results.map((r) =>
@@ -291,6 +368,10 @@ async function handleInit(
     log(ctx, `Probe complete: ok=${ok} error=${errors} timeout=${timeouts} skipped=${skipped}.`);
     if (ok === 0) {
       log(ctx, "No usable models found. Check API keys, network, and credits.", "error");
+      if (discoveryEnabled) {
+        log(ctx, "Discovery init stopped; config not changed.", "warning");
+        return;
+      }
       log(ctx, "Proceeding with full registry — most models will likely be unreachable.", "warning");
       probeLoaded = false;
     }
@@ -300,7 +381,7 @@ async function handleInit(
     log(ctx, `Using ${workingModels.length} probe-verified models (${probeAge}).`);
   }
 
-  const available = ctx.modelRegistry.getAvailable();
+  const available = selectedModels ?? ctx.modelRegistry.getAvailable();
   const models: Record<string, string[]> = {};
   const uncategorized: string[] = [];
 
@@ -353,12 +434,17 @@ async function handleInit(
     }
   }
 
-  const proposal = buildInitProposal(models, classifierModel, state.extensionDir);
+  const includedKeys = new Set(Object.values(models).flat());
+  const discoveryMetadata = discovery
+    ? buildDiscoveryMetadata(discovery.sourceModels, includedKeys)
+    : undefined;
+  const proposal = buildInitProposal(models, classifierModel, state.extensionDir, discoveryMetadata);
 
   const totalAssigned = Object.values(models).reduce((s, v) => s + v.length, 0);
   uiOutput(ctx, [
     "--- init ---",
     `source: ${probeLoaded ? `probe (${workingModels.length} working)` : `registry (${available.length} listed)`}`,
+    ...(discovery ? [`discovery: ${discoverySourceLine(discovery)}`, ...discovery.skipped.map((item) => `skipped: ${item}`)] : []),
     `assigned: ${totalAssigned} models`,
     `classifier: ${classifierModel}`,
     `uncategorized: ${uncategorized.length}`,
@@ -388,22 +474,7 @@ async function handleInit(
     return;
   }
 
-  const dir = join(process.cwd(), CONFIG_DIR_NAME);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "bifrost.json"), JSON.stringify(proposal, null, 2));
-
-  // Auto-reload so the extension picks up the new config immediately.
-  state.config = loadConfig(process.cwd(), state.extensionDir);
-  const runtimeState = loadRuntimeState(runtimeStatePath(process.cwd()), {
-    enabled: state.config.enabled ?? true,
-    pinned: false,
-    classifierEnabled: state.config.classifier?.enabled ?? true,
-  });
-  state.enabled = runtimeState.enabled;
-  state.pinned = runtimeState.pinned;
-  state.classifierEnabled = runtimeState.classifierEnabled;
-  state.reliabilityStore.reload(state.config.reliability, process.cwd());
-  state.invalidatePipeline();
+  writeAndReloadConfig(proposal as BifrostConfig, state);
 
   log(ctx, "wrote .pi/bifrost.json and reloaded config");
   log(ctx, `Bifrost active with ${Object.keys(state.config.models ?? {}).length} tier(s). Try a prompt.`);
@@ -413,6 +484,82 @@ async function handleInit(
     ctx.ui.setWidget("bifrost-output", []);
     ctx.ui.setWidget("bifrost-probe", []);
   }
+}
+
+async function handleUpdate(
+  args: string,
+  ctx: ExtensionContext,
+  state: BifrostState,
+): Promise<void> {
+  clearBifrostWidgets(ctx);
+  const requested = parseDiscoveryOptions(args);
+  if (!usesDiscovery(requested)) {
+    log(ctx, "usage: /bifrost update --scoped [--free] [--write]", "warning");
+    return;
+  }
+
+  const discovery = await refreshAndDiscover(ctx, state, requested);
+  const selected: DiscoveryOptions = {
+    scoped: requested.scoped && !discovery.unavailableSources.includes("scoped"),
+    free: requested.free && !discovery.unavailableSources.includes("free"),
+  };
+  if (!usesDiscovery(selected)) {
+    log(ctx, "No requested discovery source is available; config not changed.", "error");
+    return;
+  }
+
+  uiBusy(ctx, `Probing ${discovery.candidates.length} discovered model(s)...`);
+  const { results } = await runProbe(ctx, undefined, undefined, discovery.candidates);
+  uiDone(ctx);
+  state.reliabilityStore.applyOutcomes(
+    results.map((result) => result.status === "ok"
+      ? { model: `${result.provider}/${result.model}`, ok: true as const, source: "probe" }
+      : { model: `${result.provider}/${result.model}`, ok: false as const, source: "probe", reason: result.error ?? result.status }),
+    Date.now(),
+  );
+
+  const verifiedKeys = new Set(
+    results.filter((result) => result.status === "ok").map((result) => `${result.provider}/${result.model}`),
+  );
+  const configPath = join(process.cwd(), CONFIG_DIR_NAME, "bifrost.json");
+  const current = readJson<BifrostConfig>(configPath) ?? state.config;
+  const diff = reconcileDiscoveredModels(current, discovery, selected, verifiedKeys);
+  const probeSkipped = results
+    .filter((result) => result.status !== "ok")
+    .map((result) => `${result.provider}/${result.model} (${result.status}${result.error ? `: ${result.error}` : ""})`)
+    .sort();
+
+  uiOutput(ctx, [
+    "--- update ---",
+    `discovery: ${discoverySourceLine(discovery)}`,
+    `probe: ${verifiedKeys.size} working, ${probeSkipped.length} skipped`,
+    ...discovery.skipped.map((item) => `skipped discovery: ${item}`),
+    ...probeSkipped.map((item) => `skipped probe: ${item}`),
+    "add:",
+    ...(diff.added.length > 0 ? diff.added.map((item) => `  + ${item.model} -> ${item.tier}`) : ["  (none)"]),
+    "remove:",
+    ...(diff.removed.length > 0 ? diff.removed.map((item) => `  - ${item.model} <- ${item.tier}`) : ["  (none)"]),
+    "proposed config:",
+    JSON.stringify(diff.config, null, 2),
+    "--------------",
+  ]);
+
+  const writeWithoutPrompt = args.trim().split(/\s+/).includes("--write");
+  if (!ctx.hasUI && !writeWithoutPrompt) {
+    log(ctx, "run in TUI or use --write to persist", "warning");
+    return;
+  }
+  const ok = writeWithoutPrompt || await ctx.ui.confirm(
+    "Write config update?",
+    `Add ${diff.added.length} and remove ${diff.removed.length} discovery-managed model(s)?`,
+  );
+  if (!ok) {
+    log(ctx, "config not written");
+    return;
+  }
+
+  writeAndReloadConfig(diff.config, state);
+  log(ctx, `Updated .pi/bifrost.json: +${diff.added.length} -${diff.removed.length}.`);
 }
 
 async function handleBenchmark(
@@ -546,8 +693,9 @@ export const BIFROST_COMMAND_OPTIONS: readonly CommandSpec[] = [
   { value: "unpin", description: "Resume routing" },
   { value: "reload", description: "Reload config after editing" },
   { value: "providers", description: "List available providers" },
-  { value: "probe", description: "Probe working models" },
-  { value: "init", description: "Probe models and generate config" },
+  { value: "probe", description: "Probe models (optional --scoped and/or --free)" },
+  { value: "init", description: "Generate config (optional --scoped and/or --free)" },
+  { value: "update", description: "Reconcile discovery-managed models", argumentHint: "--scoped [--free]" },
   { value: "benchmark", description: "Classify a benchmark prompt", argumentHint: "<prompt>" },
   { value: "cache stats", description: "Show classification cache" },
   { value: "cache clear", description: "Clear classification cache" },
@@ -677,75 +825,84 @@ export function createCommandRouter(
     }),
 
     // Probe — test every model with a tiny prompt
-    exact("probe", "Probe working models", async (_, ctx) => {
-      const available = ctx.modelRegistry.getAvailable();
-      if (available.length === 0) {
-        log(ctx, "No models available in registry.", "warning");
-        return;
-      }
-      clearBifrostWidgets(ctx);
-      uiBusy(ctx, `Probing ${available.length} models...`);
-      log(ctx, `Probing ${available.length} model(s) with "${PROBE_PROMPT_TEXT}"...`);
-
-      const { results, path } = await runProbe(ctx);
-      uiDone(ctx);
-      state.reliabilityStore.applyOutcomes(
-        results.map((r) =>
-          r.status === "ok"
-            ? { model: `${r.provider}/${r.model}`, ok: true as const, source: "probe" }
-            : { model: `${r.provider}/${r.model}`, ok: false as const, source: "probe", reason: r.error ?? r.status }
-        ),
-        Date.now()
-      );
-
-      const ok = results.filter((r) => r.status === "ok");
-      const errs = results.filter((r) => r.status === "error");
-      const timeouts = results.filter((r) => r.status === "timeout");
-      const skipped = results.filter((r) => r.status === "skipped");
-
-      const lines = [
-        `--- probe results (${results.length} models) ---`,
-        `  ok:      ${ok.length}`,
-        `  error:   ${errs.length}`,
-        `  timeout: ${timeouts.length}`,
-        `  skipped: ${skipped.length}`,
-        "",
-      ];
-
-      if (errs.length > 0) {
-        lines.push("errors:");
-        for (const e of errs.slice(0, 10)) {
-          lines.push(`  ${e.provider}/${e.model} — ${e.error}`);
+    {
+      value: "probe",
+      description: "Probe models (optional --scoped and/or --free)",
+      match: (sub) => sub === "probe" || sub.startsWith("probe "),
+      handler: async (args, ctx) => {
+        const options = parseDiscoveryOptions(args);
+        const discovery = usesDiscovery(options)
+          ? await refreshAndDiscover(ctx, state, options)
+          : undefined;
+        const available = discovery?.candidates ?? ctx.modelRegistry.getAvailable();
+        if (available.length === 0) {
+          log(ctx, "No models available for selected discovery sources.", "warning");
+          return;
         }
-        if (errs.length > 10) lines.push(`  ... and ${errs.length - 10} more`);
-      }
+        clearBifrostWidgets(ctx);
+        uiBusy(ctx, `Probing ${available.length} models...`);
+        log(ctx, `Probing ${available.length} model(s) with "${PROBE_PROMPT_TEXT}"...`);
 
-      if (timeouts.length > 0) {
-        lines.push("timeouts:");
-        for (const t of timeouts) {
-          lines.push(`  ${t.provider}/${t.model}`);
-        }
-      }
-
-      lines.push("", `full results → ${path}`);
-      uiOutput(ctx, lines);
-
-      if (ok.length < results.length) {
-        log(
-          ctx,
-          `${ok.length}/${results.length} models responded. Check ${path} for details.`,
-          "warning",
+        const { results, path } = await runProbe(ctx, undefined, undefined, discovery ? available : undefined);
+        uiDone(ctx);
+        state.reliabilityStore.applyOutcomes(
+          results.map((r) =>
+            r.status === "ok"
+              ? { model: `${r.provider}/${r.model}`, ok: true as const, source: "probe" }
+              : { model: `${r.provider}/${r.model}`, ok: false as const, source: "probe", reason: r.error ?? r.status }
+          ),
+          Date.now()
         );
-      } else if (ok.length > 0) {
-        log(ctx, `All ${ok.length} models responded successfully.`);
-      }
 
-      // Clear the probe widget so results don't persist in the TUI.
-      if (ctx.hasUI) {
-        ctx.ui.setWidget("bifrost-probe", []);
-        ctx.ui.setWidget("bifrost-output", []);
-      }
-    }),
+        const ok = results.filter((r) => r.status === "ok");
+        const errs = results.filter((r) => r.status === "error");
+        const timeouts = results.filter((r) => r.status === "timeout");
+        const skipped = results.filter((r) => r.status === "skipped");
+
+        const lines = [
+          `--- probe results (${results.length} models) ---`,
+          `  ok:      ${ok.length}`,
+          `  error:   ${errs.length}`,
+          `  timeout: ${timeouts.length}`,
+          `  skipped: ${skipped.length}`,
+          "",
+        ];
+
+        if (errs.length > 0) {
+          lines.push("errors:");
+          for (const e of errs.slice(0, 10)) {
+            lines.push(`  ${e.provider}/${e.model} — ${e.error}`);
+          }
+          if (errs.length > 10) lines.push(`  ... and ${errs.length - 10} more`);
+        }
+
+        if (timeouts.length > 0) {
+          lines.push("timeouts:");
+          for (const t of timeouts) {
+            lines.push(`  ${t.provider}/${t.model}`);
+          }
+        }
+
+        lines.push("", `full results → ${path}`);
+        uiOutput(ctx, lines);
+
+        if (ok.length < results.length) {
+          log(
+            ctx,
+            `${ok.length}/${results.length} models responded. Check ${path} for details.`,
+            "warning",
+          );
+        } else if (ok.length > 0) {
+          log(ctx, `All ${ok.length} models responded successfully.`);
+        }
+
+        // Clear the probe widget so results don't persist in the TUI.
+        if (ctx.hasUI) {
+          ctx.ui.setWidget("bifrost-probe", []);
+          ctx.ui.setWidget("bifrost-output", []);
+        }
+        },
+    },
 
     // Init
     {
@@ -753,6 +910,12 @@ export function createCommandRouter(
       description: "Probe models and generate config",
       match: (sub) => sub === "init" || sub.startsWith("init "),
       handler: (args, ctx) => handleInit(args, ctx, state),
+    },
+    {
+      value: "update",
+      description: "Reconcile discovery-managed models",
+      match: (sub) => sub === "update" || sub.startsWith("update "),
+      handler: (args, ctx) => handleUpdate(args, ctx, state),
     },
 
     // Benchmark

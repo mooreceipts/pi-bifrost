@@ -5,8 +5,15 @@ import type { RoutingStrategy, RouteRule } from "./routing.ts";
 import type { CacheOptions } from "./cache.ts";
 import type { DebugConfig } from "./debug.ts";
 import type { ReliabilityConfig } from "./reliability.ts";
+import type { QuotaRoutingConfig } from "./quota.ts";
 
 type ClassifierMethod = "direct" | "subprocess" | "auto";
+
+export type DiscoverySource = "scoped" | "free";
+
+export interface DiscoveryConfig {
+  managed: Record<string, DiscoverySource[]>;
+}
 
 export interface ClassifierConfig {
   enabled?: boolean;
@@ -30,6 +37,8 @@ export interface BifrostConfig {
   cache?: CacheOptions;
   debug?: DebugConfig;
   reliability?: ReliabilityConfig;
+  discovery?: DiscoveryConfig;
+  quotaRouting?: QuotaRoutingConfig;
 }
 
 export const DEFAULT_RULES: RouteRule[] = [
@@ -123,6 +132,7 @@ export const ALL_STRATEGIES: readonly RoutingStrategy[] = [
   "largest_context",
   "random",
   "fastest",
+  "subscription_balance",
 ];
 
 export interface ConfigIssue {
@@ -185,6 +195,20 @@ export function validateConfig(
     issues.push({
       severity: "warning",
       message: `Cache maxEntries is ${config.cache.maxEntries}, should be > 0.`,
+    });
+  }
+
+  const quota = config.quotaRouting;
+  if (quota?.reservePercent !== undefined && (quota.reservePercent < 0 || quota.reservePercent > 1)) {
+    issues.push({
+      severity: "warning",
+      message: `quotaRouting.reservePercent must be between 0 and 1, got ${quota.reservePercent}.`,
+    });
+  }
+  if (quota?.gamma !== undefined && (quota.gamma < 0 || !Number.isFinite(quota.gamma))) {
+    issues.push({
+      severity: "warning",
+      message: `quotaRouting.gamma must be a finite number >= 0, got ${quota.gamma}.`,
     });
   }
 
@@ -267,6 +291,8 @@ export function mergeConfig(
   merged.cache = mergeObj(base.cache, override.cache);
   merged.debug = mergeObj(base.debug, override.debug);
   merged.reliability = mergeObj(base.reliability, override.reliability);
+  merged.discovery = mergeObj(base.discovery, override.discovery);
+  merged.quotaRouting = mergeObj(base.quotaRouting, override.quotaRouting);
   return merged;
 }
 

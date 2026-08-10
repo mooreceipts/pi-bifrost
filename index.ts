@@ -28,6 +28,7 @@ import {
   modelKey,
   resolveModelWithFallback,
 } from "./routing.js";
+import { QuotaStore } from "./quota.js";
 import { ReliabilityStore } from "./reliability-store.js";
 import { loadRuntimeState, runtimeStatePath, saveRuntimeState } from "./runtime-state.js";
 import { createCommandRouter, getBifrostCommandCompletions, log, uiBusy, uiDone, syncBifrostModeStatus, clearBifrostWidgets, type BifrostState } from "./commands.js";
@@ -130,6 +131,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
   }
   const cacheEntries = loadCache(cachePath(process.cwd(), config.cache?.path));
   const reliabilityStore = new ReliabilityStore({ cwd: process.cwd(), config: config.reliability });
+  const quotaStore = new QuotaStore(config.quotaRouting);
   const runtimeStateFile = runtimeStatePath(process.cwd());
   const runtimeState = loadRuntimeState(runtimeStateFile, {
     enabled: config.enabled ?? true,
@@ -150,6 +152,17 @@ export default function bifrostExtension(pi: ExtensionAPI) {
   function invalidatePipeline() {
     debug("bifrost", "pipeline.invalidate");
     pipeline = undefined;
+  }
+
+  function summarizeQuota(store: QuotaStore): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(store.getSnapshot().byProvider)) {
+      out[k] =
+        typeof v.weeklyRemainingFraction === "number"
+          ? (v.weeklyRemainingFraction * 100).toFixed(0) + "%"
+          : "?";
+    }
+    return out;
   }
 
   // Mutable state shared with command handlers.
@@ -184,6 +197,8 @@ export default function bifrostExtension(pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     syncBifrostModeStatus(ctx, state);
     clearBifrostWidgets(ctx);
+    // Warm the quota snapshot so subscription_balance has data on first prompt.
+    void quotaStore.refreshIfStale(Date.now());
   });
 
   pi.on("agent_end", async (event) => {
@@ -209,14 +224,10 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     if (!state.enabled) return;
 
     state.pinned = true;
-    state.saveModeState();
     debug("bifrost", "model_select", { model: modelKey(ctx.model) });
     syncBifrostModeStatus(ctx, state);
     clearBifrostWidgets(ctx);
-    log(
-      ctx,
-      `Model manually changed to ${modelKey(ctx.model)}; Bifrost pinned.`,
-    );
+    process.stderr.write(`\r\x1b[K[bifrost] Pinned to ${modelKey(ctx.model)} for next prompt`);
   });
 
   pi.on("input", async (event, ctx) => {
@@ -235,6 +246,11 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     }
     if (!state.enabled || state.pinned) {
       debug("input", "bypass", { enabled: state.enabled, pinned: state.pinned });
+      if (state.pinned) {
+        process.stderr.write(`\r\x1b[K`);
+        state.pinned = false;
+        debug("bifrost", "auto_unpin", { model: modelKey(ctx.model) });
+      }
       syncBifrostModeStatus(ctx, state);
       return { action: "continue" };
     }
@@ -290,6 +306,8 @@ export default function bifrostExtension(pi: ExtensionAPI) {
         console.error(`[bifrost] classify: ${classification.tier} [${tag}]`);
       }
 
+      void quotaStore.refreshIfStale(Date.now());
+
       endClassify({ kind: classification.kind, tier: classification.kind !== "unclassified" ? classification.tier : undefined });
       uiDone(ctx);
       setBifrostWorkingMessage(ctx, undefined);
@@ -323,6 +341,8 @@ export default function bifrostExtension(pi: ExtensionAPI) {
         defaultStrategy,
         reliabilityState: state.reliabilityStore.getState(),
         reliabilityConfig: state.config.reliability,
+        quota: quotaStore.getSnapshot(),
+        quotaConfig: state.config.quotaRouting,
       });
       const model = resolved.selected;
       const selectedTier = resolved.selectedTier ?? tier;
@@ -365,7 +385,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
         const reason = resolved.fallbackReason ? `, ${resolved.fallbackReason}` : "";
         log(ctx, `Bifrost: ${tier} → ${modelKey(model)} (already active, ${source}${reason})`);
         debug("input", "model_unchanged", { model: modelKey(model), selectedTier, fallbackReason: resolved.fallbackReason, skipped: resolved.skipped.length, thinkingLevel: ctx.thinkingLevel });
-        debug("input", "model_selected", { model: modelKey(model), tier: selectedTier, strategy, source, fallbackReason: resolved.fallbackReason, thinkingLevel: ctx.thinkingLevel });
+        debug("input", "model_selected", { model: modelKey(model), tier: selectedTier, strategy, source, fallbackReason: resolved.fallbackReason, thinkingLevel: ctx.thinkingLevel, quota: summarizeQuota(quotaStore) });
         runtimeReliability.begin(modelKey(model));
         endInput({ model: modelKey(model), tier: selectedTier, strategy, source, thinkingLevel: ctx.thinkingLevel });
         return defaultAction;
@@ -410,7 +430,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
       syncBifrostModeStatus(ctx, state);
       log(ctx, doneMsg);
       runtimeReliability.begin(modelKey(model));
-      debug("input", "model_selected", { model: modelKey(model), tier: selectedTier, strategy, source, fallbackReason: resolved.fallbackReason, thinkingLevel: ctx.thinkingLevel });
+      debug("input", "model_selected", { model: modelKey(model), tier: selectedTier, strategy, source, fallbackReason: resolved.fallbackReason, thinkingLevel: ctx.thinkingLevel, quota: summarizeQuota(quotaStore) });
       endInput({ model: modelKey(model), tier: selectedTier, strategy, source, thinkingLevel: ctx.thinkingLevel });
       return defaultAction;
     } finally {

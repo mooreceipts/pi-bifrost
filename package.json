@@ -1,20 +1,20 @@
 {
   "name": "pi-bifrost",
-  "version": "0.3.12",
+  "version": "0.1.0",
   "description": "Query-aware model routing extension for Pi. Select models by task complexity, cost, context, speed, or configured order.",
   "type": "module",
   "license": "MIT",
   "author": {
     "name": "Aamir",
-    "url": "https://github.com/iamaamir"
+    "url": "https://github.com/mooreceipts"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/iamaamir/pi-bifrost.git"
+    "url": "git+https://github.com/mooreceipts/pi-bifrost.git"
   },
-  "homepage": "https://iamaamir.github.io/pi-bifrost/",
+  "homepage": "https://mooreceipts.github.io/pi-bifrost/",
   "bugs": {
-    "url": "https://github.com/iamaamir/pi-bifrost/issues"
+    "url": "https://github.com/mooreceipts/pi-bifrost/issues"
   },
   "keywords": [
     "pi-package",
@@ -30,8 +30,7 @@
     "extensions": [
       "./index.ts"
     ],
-    "minPiVersion": "0.80.8",
-    "image": "https://iamaamir.github.io/pi-bifrost/social-card.png"
+    "minPiVersion": "0.80.8"
   },
   "scripts": {
     "test": "node --test --experimental-strip-types \"tests/*.test.ts\" \"tests/*.test.mjs\"",

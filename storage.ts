@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 
 export function resolveStoragePath(
@@ -17,7 +17,7 @@ export function resolveStoragePath(
 }
 
 export function readTextFile(path: string): string | undefined {
-  if (!existsSync(path)) return undefined;
+  if (!existsSync(path) || statSync(path).isDirectory()) return undefined;
   return readFileSync(path, "utf-8");
 }
 

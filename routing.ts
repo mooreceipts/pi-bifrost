@@ -1,6 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { getCircuitState, type ReliabilityConfig, type ReliabilityState } from "./reliability.ts";
+import type { ProviderQuota, QuotaRoutingConfig, QuotaSnapshot } from "./quota.ts";
 
 export type RoutingStrategy =
   | "first"
@@ -9,7 +10,8 @@ export type RoutingStrategy =
   | "cheapest_output"
   | "largest_context"
   | "random"
-  | "fastest";
+  | "fastest"
+  | "subscription_balance";
 
 export interface RouteRule {
   pattern: string;
@@ -105,6 +107,9 @@ export function findCandidates(
 export function selectModel(
   candidates: Model<Api>[],
   strategy: RoutingStrategy,
+  quota?: QuotaSnapshot,
+  quotaConfig?: QuotaRoutingConfig,
+  now = Date.now(),
 ): Model<Api> | undefined {
   if (candidates.length === 0) return undefined;
 
@@ -119,10 +124,107 @@ export function selectModel(
       return [...candidates].sort((a, b) => modelContextSize(b) - modelContextSize(a))[0];
     case "random":
       return candidates[Math.floor(Math.random() * candidates.length)];
+    case "subscription_balance":
+      return selectWeighted(candidates, subscriptionWeights(candidates, quota, quotaConfig, now));
     default:
       // "first", "fastest" — list order is assumed meaningful.
       return candidates[0];
   }
+}
+
+// ── Subscription-aware weighting ────────────────────────────────────
+
+export type BillingClass = "subscription" | "free" | "paid-credit" | "unknown";
+
+/**
+ * Classify a model's billing. Cost-free models are always usable;
+ * subscription providers (Codex/Antigravity) carry the weekly quota;
+ * OpenRouter-compatible hubs are credit-based. Unknown providers are
+ * treated neutrally (never blocked, never biased).
+ */
+export function billingClass(model: Model<Api>): BillingClass {
+  if (modelCost(model) <= 0) return "free";
+  const p = model.provider.toLowerCase();
+  if (/codex|antigravity|google|gemini/.test(p)) return "subscription";
+  if (/openrouter|opencode/.test(p)) return "paid-credit";
+  return "unknown";
+}
+
+/**
+ * Weights for `subscription_balance`.
+ *
+ * - free: weight 1 always (zero cost, nothing to conserve)
+ * - subscription: weight = weeklyRemainingFraction^gamma — the provider
+ *   with more remaining allowance is favored harder as gamma grows;
+ *   near equilibrium the weights converge toward even. A subscription
+ *   with no fresh telemetry gets a conservative 0.5 so it can't
+ *   outrank a measured healthy subscription.
+ * - paid-credit: weight 0 while any measured subscription still has
+ *   allowance above `reservePercent`; unblocked once subscriptions are
+ *   drained or when no subscription telemetry is available at all.
+ * - unknown: weight 1 (no telemetry → no bias, but never blocked)
+ *
+ * A globally stale or empty snapshot degrades everything to weight 1
+ * (uniform) — no data → no bias, and paid credits are never starved.
+ */
+export function subscriptionWeights(
+  candidates: Model<Api>[],
+  quota: QuotaSnapshot | undefined,
+  cfg: QuotaRoutingConfig | undefined,
+  now = Date.now(),
+): number[] {
+  const reserve = cfg?.reservePercent ?? 0.03;
+  const gamma = cfg?.gamma ?? 3;
+  const fresh =
+    quota !== undefined && now - quota.fetchedAt < (cfg?.staleMinutes ?? 15) * 60_000;
+
+  // Only measured subscriptions can block credits; an unmeasured one can't
+  // prove remaining allowance, so it must not keep the user off credits.
+  const measuredSubs = fresh
+    ? candidates.filter(
+        (m) =>
+          billingClass(m) === "subscription" &&
+          typeof quota!.byProvider[m.provider]?.weeklyRemainingFraction === "number",
+      )
+    : [];
+  const anySubAboveReserve = measuredSubs.some((m) => {
+    const w = quota!.byProvider[m.provider]?.weeklyRemainingFraction;
+    return typeof w === "number" && w > reserve;
+  });
+  // 0.5-for-unmeasured only applies when we DO have signal on another
+  // subscription; a totally empty snapshot stays uniform (no data at all).
+  const anyMeasuredSub = measuredSubs.length > 0;
+
+  return candidates.map((m) => {
+    switch (billingClass(m)) {
+      case "free":
+        return 1;
+      case "paid-credit":
+        return anySubAboveReserve ? 0 : 1;
+      case "subscription": {
+        if (!fresh || !anyMeasuredSub) return 1;
+        const w = quota!.byProvider[m.provider]?.weeklyRemainingFraction;
+        if (typeof w !== "number") return 0.5; // unmeasured: conservative, not dominant
+        if (w <= reserve) return 0.05; // measured & drained — lose to credits
+        return Math.pow(w, gamma);
+      }
+      default:
+        return 1;
+    }
+  });
+}
+
+/** Weighted random pick. Zero-weight items never win; all-zero degenerates to uniform. */
+export function selectWeighted<T>(items: readonly T[], weights: readonly number[]): T | undefined {
+  if (items.length === 0) return undefined;
+  const total = items.reduce((sum, _, i) => sum + Math.max(0, weights[i] ?? 0), 0);
+  if (total <= 0) return items[Math.floor(Math.random() * items.length)];
+  let r = Math.random() * total;
+  for (let i = 0; i < items.length; i++) {
+    r -= Math.max(0, weights[i] ?? 0);
+    if (r <= 0) return items[i];
+  }
+  return items[items.length - 1];
 }
 
 export function resolveModel(
@@ -163,12 +265,14 @@ export function resolveHealthyModel(
   strategy: RoutingStrategy,
   reliabilityState: ReliabilityState | undefined,
   reliabilityConfig: ReliabilityConfig | undefined,
+  quota?: QuotaSnapshot,
+  quotaConfig?: QuotaRoutingConfig,
   now = Date.now(),
 ): HealthyModelResolution {
   const candidates = findCandidates(ctx, pattern);
   if (!reliabilityState || reliabilityConfig?.enabled === false) {
     return {
-      selected: selectModel(candidates, strategy),
+      selected: selectModel(candidates, strategy, quota, quotaConfig, now),
       candidates,
       healthyCandidates: candidates,
       skipped: [],
@@ -187,7 +291,7 @@ export function resolveHealthyModel(
   }
 
   return {
-    selected: selectModel(healthyCandidates, strategy),
+    selected: selectModel(healthyCandidates, strategy, quota, quotaConfig, now),
     candidates,
     healthyCandidates,
     skipped,
@@ -205,6 +309,8 @@ export function resolveModelWithFallback(
     defaultStrategy?: RoutingStrategy;
     reliabilityState?: ReliabilityState;
     reliabilityConfig?: ReliabilityConfig;
+    quota?: QuotaSnapshot;
+    quotaConfig?: QuotaRoutingConfig;
     now?: number;
   },
 ): RoutedModelResolution {
@@ -215,6 +321,8 @@ export function resolveModelWithFallback(
     options.requestedStrategy,
     options.reliabilityState,
     options.reliabilityConfig,
+    options.quota,
+    options.quotaConfig,
     now,
   );
   if (primary.selected) {
@@ -258,6 +366,8 @@ export function resolveModelWithFallback(
     options.defaultStrategy ?? options.requestedStrategy,
     options.reliabilityState,
     options.reliabilityConfig,
+    options.quota,
+    options.quotaConfig,
     now,
   );
 

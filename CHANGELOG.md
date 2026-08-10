@@ -2,21 +2,11 @@
 
 All notable changes to pi-bifrost are documented here.
 
-## [0.2.0] - UNRELEASED
-
-### Added
-- Inline tier override via first-word detection (`frontier debug this`)
-- Config validation on startup (`validateConfig`)
-- Extracted `parseInlineOverride` for testability
-- User-facing config issue messages
+## [0.1.0]
 
 ### Changed
-- Eliminated all `as unknown as` casts from production code
-- Config merge order: `.pi/bifrost.json` now wins over root `bifrost.json`
-
-## [0.1.7] - 2026-07-xx
-
-### Added
-- Direct model bindings via `"model": "provider/id"` in regex rules
-- `parseInlineOverride` extraction
-- Config validation
+- copied commands.ts, routing.ts, config.ts, schema.json, index.ts from installed version
+- New files added — discovery.ts (model discovery across sources) and quota.ts (subscription-aware routing)
+- EISDIR fix preserved — storage.ts keeps our statSync().isDirectory() guard; re-applied same guard to new commands.ts
+- Package.json updated — version and URLs updated to mooreceipts fork (hook applied 0.1.0)
+- README rewritten — clean structure, mentions fork differences (discovery, quota routing, EISDIR fix), retains all credits to Aamir/iamaamir
