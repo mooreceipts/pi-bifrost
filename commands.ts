@@ -69,7 +69,6 @@ export function logOverwrite(
   if (isBifrostSilent(ctx)) return;
   process.stderr.write(`\r\x1b[2K[bifrost] ${message}`);
   overwriteActive = true;
-  if (ctx.hasUI) ctx.ui.notify(message, "info");
 }
 
 export function finalizeOverwrite(): void {
