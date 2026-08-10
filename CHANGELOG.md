@@ -5,7 +5,6 @@ All notable changes to pi-bifrost are documented here.
 ## [0.3.15] - 10-08-2026
 
 ### Added
-- Statusline status formatting for Bifrost (`⚡ bifrost: on/off ~ pinned/unpinned ~ silence/unsilence`) registered under status key `bifrost`.
 
 ## [0.3.14] - 10-08-2026
 
