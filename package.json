@@ -1,11 +1,11 @@
 {
-  "name": "pi-bifrost",
+  "name": "@tenchi4u/pi-bifrost",
   "version": "0.1.1",
   "description": "Query-aware model routing extension for Pi. Select models by task complexity, cost, context, speed, or configured order.",
   "type": "module",
   "license": "MIT",
   "author": {
-    "name": "Aamir",
+    "name": "Matt",
     "url": "https://github.com/mooreceipts"
   },
   "repository": {
