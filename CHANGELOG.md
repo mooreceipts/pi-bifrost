@@ -2,7 +2,7 @@
 
 All notable changes to pi-bifrost are documented here.
 
-## [0.1.2] - 10-08-2026
+## [0.3.14] - 10-08-2026
 
 ### Added
 - Silent mode configuration (`"silent": true`) to turn off all Pi console outputs and UI notifications while model routing remains active.
