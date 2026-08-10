@@ -11,6 +11,7 @@ export interface BifrostModeState {
   enabled: boolean;
   pinned: boolean;
   classifierEnabled: boolean;
+  silent: boolean;
 }
 
 export function shouldRefreshRegistry(
@@ -74,10 +75,19 @@ function modeLabel(state: BifrostModeState): { tone: "warning" | "success"; text
   return { tone: "success", text: "on" };
 }
 
+export function formatBifrostStatus(state: { enabled: boolean; pinned: boolean; silent: boolean }): string {
+  const routing = state.enabled ? "\x1b[32mon\x1b[0m" : "\x1b[33moff\x1b[0m";
+  const pin = state.pinned ? "\x1b[33mpinned\x1b[0m" : "\x1b[90munpinned\x1b[0m";
+  const sil = state.silent ? "\x1b[36msilence\x1b[0m" : "\x1b[32munsilence\x1b[0m";
+  const tilde = "\x1b[90m~\x1b[0m";
+  return `\x1b[90m⚡ bifrost:\x1b[0m ${routing} ${tilde} ${pin} ${tilde} ${sil}`;
+}
+
 export function setBifrostModeStatus(ctx: ExtensionContext, state: BifrostModeState): void {
   if (!ctx.hasUI) return;
 
   const label = modeLabel(state);
   const text = statusText(ctx, label.tone, label.text);
   ctx.ui.setStatus("bifrost-state", text);
+  ctx.ui.setStatus("bifrost", formatBifrostStatus(state));
 }

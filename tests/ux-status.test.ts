@@ -55,22 +55,28 @@ describe("ux status helpers", () => {
 
   it("renders persistent mode state", () => {
     const { ctx, calls } = makeCtx();
-    setBifrostModeStatus(ctx as never, { enabled: true, pinned: false, classifierEnabled: true });
+    setBifrostModeStatus(ctx as never, { enabled: true, pinned: false, classifierEnabled: true, silent: false });
     assert.equal(calls[0]?.kind, "status");
     assert.equal(calls[0]?.key, "bifrost-state");
     assert.match(String(calls[0]?.value ?? ""), /Bifrost · on/);
+    assert.equal(calls[1]?.key, "bifrost");
+    assert.match(String(calls[1]?.value ?? "").replace(/\x1b\[[0-9;]*m/g, ""), /bifrost: on ~ unpinned ~ unsilence/);
 
     calls.length = 0;
-    setBifrostModeStatus(ctx as never, { enabled: false, pinned: false, classifierEnabled: true });
+    setBifrostModeStatus(ctx as never, { enabled: false, pinned: false, classifierEnabled: true, silent: false });
     assert.equal(calls[0]?.kind, "status");
     assert.equal(calls[0]?.key, "bifrost-state");
     assert.match(String(calls[0]?.value ?? ""), /Bifrost · off/);
+    assert.equal(calls[1]?.key, "bifrost");
+    assert.match(String(calls[1]?.value ?? "").replace(/\x1b\[[0-9;]*m/g, ""), /bifrost: off ~ unpinned ~ unsilence/);
 
     calls.length = 0;
-    setBifrostModeStatus(ctx as never, { enabled: true, pinned: true, classifierEnabled: true });
+    setBifrostModeStatus(ctx as never, { enabled: true, pinned: true, classifierEnabled: true, silent: true });
     assert.equal(calls[0]?.kind, "status");
     assert.equal(calls[0]?.key, "bifrost-state");
     assert.match(String(calls[0]?.value ?? ""), /Bifrost · pinned/);
+    assert.equal(calls[1]?.key, "bifrost");
+    assert.match(String(calls[1]?.value ?? "").replace(/\x1b\[[0-9;]*m/g, ""), /bifrost: on ~ pinned ~ silence/);
   });
 
   it("refreshes when there is no prior refresh", () => {
