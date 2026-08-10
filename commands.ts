@@ -29,6 +29,7 @@ import {
   type RoutingStrategy,
 } from "./routing.ts";
 import type { ReliabilityStore } from "./reliability-store.ts";
+import type { QuotaStore } from "./quota.ts";
 
 // ── Mutable state shared across commands ────────────────────
 
@@ -44,6 +45,7 @@ export interface BifrostState {
   invalidatePipeline: () => void;
   /** Persist runtime mode toggles (enabled/pinned/classifierEnabled) to disk. */
   saveModeState: () => void;
+  quotaStore: QuotaStore;
   lastRegistryRefreshAt?: number;
   forceRegistryRefresh?: boolean;
 }
@@ -144,6 +146,8 @@ function resolveTierDisplay(
     defaultStrategy,
     reliabilityState: state.reliabilityStore.getState(),
     reliabilityConfig: state.config.reliability,
+    quota: state.quotaStore.getSnapshot(),
+    quotaConfig: state.config.quotaRouting,
   });
 
   const selectedKey = resolved.selected ? modelKey(resolved.selected) : undefined;
@@ -260,6 +264,7 @@ function writeAndReloadConfig(config: BifrostConfig, state: BifrostState): void 
   state.pinned = runtimeState.pinned;
   state.classifierEnabled = runtimeState.classifierEnabled;
   state.reliabilityStore.reload(state.config.reliability, process.cwd());
+  state.quotaStore.updateConfig(state.config.quotaRouting);
   state.invalidatePipeline();
 }
 
@@ -795,6 +800,7 @@ export function createCommandRouter(
       state.pinned = runtimeState.pinned;
       state.cacheEntries = loadCache(cachePath(process.cwd(), state.config.cache?.path));
       state.reliabilityStore.reload(state.config.reliability, process.cwd());
+      state.quotaStore.updateConfig(state.config.quotaRouting);
       state.invalidatePipeline();
       syncBifrostModeStatus(ctx, state);
       clearBifrostWidgets(ctx);

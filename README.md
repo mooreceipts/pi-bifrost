@@ -155,7 +155,7 @@ Routes based on subscription quota remaining for Codex and Antigravity:
 }
 ```
 
-Drains subscription allowances before falling back to paid providers.
+Drains subscription allowances (OpenAI Codex, Google Antigravity) before falling back to paid providers. Config changes apply on `/bifrost reload` without restart.
 
 ### Reliability
 

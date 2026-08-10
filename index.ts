@@ -180,6 +180,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
       enabled: state.enabled,
       classifierEnabled: state.classifierEnabled,
     }),
+    quotaStore,
     lastRegistryRefreshAt: undefined,
     forceRegistryRefresh: false,
   };

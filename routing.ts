@@ -145,7 +145,7 @@ export type BillingClass = "subscription" | "free" | "paid-credit" | "unknown";
 export function billingClass(model: Model<Api>): BillingClass {
   if (modelCost(model) <= 0) return "free";
   const p = model.provider.toLowerCase();
-  if (/codex|antigravity|google|gemini/.test(p)) return "subscription";
+  if (/codex|antigravity/.test(p)) return "subscription";
   if (/openrouter|opencode/.test(p)) return "paid-credit";
   return "unknown";
 }
