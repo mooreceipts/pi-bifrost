@@ -154,6 +154,18 @@ Try:
 
 Tradeoff: more categories to maintain, but routing matches task shape closely.
 
+### `subscription-balance-frontier.json`
+
+Use when frontier capacity comes from subscriptions such as OpenAI/Codex and Google/Antigravity, with paid OpenRouter-compatible models reserved as fallback.
+
+- Uses `subscription_balance` only for the frontier tier.
+- Favors the subscription provider with more weekly allowance remaining.
+- Moves toward even selection as remaining allowances approach equilibrium.
+- Gives paid-credit candidates zero weight while any measured subscription remains above `reservePercent`.
+- Degrades to neutral routing when telemetry is stale or unavailable.
+
+Replace every model placeholder with models available in your Pi registry.
+
 ### `advanced-classifier-prompt.json`
 
 Use when the built-in classifier prompt is too terse for your workflow and you want the LLM to route by task intent rather than isolated keywords.
@@ -222,10 +234,11 @@ Set a global strategy or override it per tier:
 {
   "strategy": "first",
   "categoryStrategies": {
-    "economical": "cheapest",
+    "quick": "cheapest",
     "deep": "largest_context",
     "latency-sensitive": "fastest",
-    "load-balanced": "random"
+    "load-balanced": "random",
+    "frontier": "subscription_balance"
   }
 }
 ```
@@ -237,3 +250,4 @@ Set a global strategy or override it per tier:
 - `first`: first available candidate in list order.
 - `fastest`: probe-sorted first candidate.
 - `random`: random available candidate.
+- `subscription_balance`: weighted subscription selection using fresh weekly quota telemetry; paid-credit providers unlock after subscriptions reach reserve.

@@ -31,7 +31,7 @@ import {
 import { QuotaStore } from "./quota.js";
 import { ReliabilityStore } from "./reliability-store.js";
 import { loadRuntimeState, runtimeStatePath, saveRuntimeState } from "./runtime-state.js";
-import { createCommandRouter, getBifrostCommandCompletions, log, uiBusy, uiDone, syncBifrostModeStatus, clearBifrostWidgets, type BifrostState } from "./commands.js";
+import { createCommandRouter, getBifrostCommandCompletions, log, uiBusy, uiDone, setBifrostSilent, syncBifrostModeStatus, clearBifrostWidgets, type BifrostState } from "./commands.js";
 import { setupDebug, debug, debugMeasure } from "./debug.js";
 import { parseInlineOverride } from "./inline-override.js";
 import { RuntimeReliabilityTracker } from "./runtime-reliability.js";
@@ -125,9 +125,11 @@ export default function bifrostExtension(pi: ExtensionAPI) {
   // Validate config on startup. Errors are logged; the extension
   // continues with best-effort routing for warnings.
   const configIssues = validateConfig(config);
-  for (const issue of configIssues) {
-    const tag = issue.severity === "error" ? "error" : "warning";
-    console.error(`[bifrost/config] ${tag}: ${issue.message}`);
+  if (!config.silent) {
+    for (const issue of configIssues) {
+      const tag = issue.severity === "error" ? "error" : "warning";
+      console.error(`[bifrost/config] ${tag}: ${issue.message}`);
+    }
   }
   const cacheEntries = loadCache(cachePath(process.cwd(), config.cache?.path));
   const reliabilityStore = new ReliabilityStore({ cwd: process.cwd(), config: config.reliability });
@@ -137,6 +139,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     enabled: config.enabled ?? true,
     pinned: false,
     classifierEnabled: config.classifier?.enabled ?? true,
+    silent: config.silent ?? false,
   });
   let selfSelecting = false;
   const runtimeReliability = new RuntimeReliabilityTracker();
@@ -171,6 +174,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     enabled: runtimeState.enabled,
     classifierEnabled: runtimeState.classifierEnabled,
     pinned: runtimeState.pinned,
+    silent: runtimeState.silent,
     cacheEntries,
     reliabilityStore,
     extensionDir,
@@ -179,8 +183,8 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     saveModeState: () => saveRuntimeState(runtimeStateFile, {
       enabled: state.enabled,
       classifierEnabled: state.classifierEnabled,
+      silent: state.silent,
     }),
-    quotaStore,
     lastRegistryRefreshAt: undefined,
     forceRegistryRefresh: false,
   };
@@ -196,6 +200,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
+    setBifrostSilent(ctx, state.silent);
     syncBifrostModeStatus(ctx, state);
     clearBifrostWidgets(ctx);
     // Warm the quota snapshot so subscription_balance has data on first prompt.
@@ -207,6 +212,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
   });
 
   pi.on("agent_settled", async (_event, ctx) => {
+    setBifrostSilent(ctx, state.silent);
     const settled = runtimeReliability.settle();
     if (!settled || !state.enabled || state.config.reliability?.enabled === false) return;
     // Policy A: failure logged, clean settle silent (trial-only success).
@@ -218,6 +224,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
   });
 
   pi.on("model_select", async (_event, ctx) => {
+    setBifrostSilent(ctx, state.silent);
     if (selfSelecting) {
       selfSelecting = false;
       return;
@@ -225,13 +232,18 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     if (!state.enabled) return;
 
     state.pinned = true;
+    state.saveModeState();
     debug("bifrost", "model_select", { model: modelKey(ctx.model) });
     syncBifrostModeStatus(ctx, state);
     clearBifrostWidgets(ctx);
-    process.stderr.write(`\r\x1b[K[bifrost] Pinned to ${modelKey(ctx.model)} for next prompt`);
+    log(
+      ctx,
+      `Model manually changed to ${modelKey(ctx.model)}; Bifrost pinned.`,
+    );
   });
 
   pi.on("input", async (event, ctx) => {
+    setBifrostSilent(ctx, state.silent);
     if (event.source === "extension") return { action: "continue" };
     clearBifrostWidgets(ctx);
     // Passive subagent observation — logged even when routing is disabled,
@@ -247,11 +259,6 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     }
     if (!state.enabled || state.pinned) {
       debug("input", "bypass", { enabled: state.enabled, pinned: state.pinned });
-      if (state.pinned) {
-        process.stderr.write(`\r\x1b[K`);
-        state.pinned = false;
-        debug("bifrost", "auto_unpin", { model: modelKey(ctx.model) });
-      }
       syncBifrostModeStatus(ctx, state);
       return { action: "continue" };
     }

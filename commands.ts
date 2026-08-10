@@ -29,7 +29,6 @@ import {
   type RoutingStrategy,
 } from "./routing.ts";
 import type { ReliabilityStore } from "./reliability-store.ts";
-import type { QuotaStore } from "./quota.ts";
 
 // ── Mutable state shared across commands ────────────────────
 
@@ -38,16 +37,27 @@ export interface BifrostState {
   enabled: boolean;
   classifierEnabled: boolean;
   pinned: boolean;
+  silent: boolean;
   cacheEntries: CacheEntry[];
   reliabilityStore: ReliabilityStore;
   extensionDir: string;
   getPipeline: (ctx: ExtensionContext) => ClassificationPipeline;
   invalidatePipeline: () => void;
-  /** Persist runtime mode toggles (enabled/pinned/classifierEnabled) to disk. */
+  /** Persist runtime mode toggles (enabled/classifierEnabled/silent) to disk. */
   saveModeState: () => void;
-  quotaStore: QuotaStore;
   lastRegistryRefreshAt?: number;
   forceRegistryRefresh?: boolean;
+}
+
+const silentContexts = new WeakSet<ExtensionContext>();
+
+export function setBifrostSilent(ctx: ExtensionContext, silent: boolean): void {
+  if (silent) silentContexts.add(ctx);
+  else silentContexts.delete(ctx);
+}
+
+function isBifrostSilent(ctx: ExtensionContext): boolean {
+  return silentContexts.has(ctx);
 }
 
 export function log(
@@ -55,11 +65,13 @@ export function log(
   message: string,
   type?: "info" | "warning" | "error",
 ) {
+  if (isBifrostSilent(ctx)) return;
   console.error(`[bifrost] ${message}`);
   if (ctx.hasUI) ctx.ui.notify(message, type ?? "info");
 }
 
 export function uiBusy(ctx: ExtensionContext, message: string) {
+  if (isBifrostSilent(ctx)) return;
   if (ctx.mode === "tui" && ctx.hasUI) {
     ctx.ui.setWorkingMessage(message);
     ctx.ui.setWorkingVisible(true);
@@ -76,6 +88,7 @@ export function uiDone(ctx: ExtensionContext) {
 }
 
 function uiOutput(ctx: ExtensionContext, lines: string[]) {
+  if (isBifrostSilent(ctx)) return;
   if (ctx.mode === "tui" && ctx.hasUI) {
     ctx.ui.setWidget("bifrost-output", lines);
   } else {
@@ -84,6 +97,7 @@ function uiOutput(ctx: ExtensionContext, lines: string[]) {
 }
 
 async function uiResult(ctx: ExtensionContext, title: string, lines: string[]): Promise<void> {
+  if (isBifrostSilent(ctx)) return;
   if (await showBifrostResult(ctx, title, lines)) return;
   for (const line of lines) console.error(`[bifrost] ${line}`);
 }
@@ -146,8 +160,6 @@ function resolveTierDisplay(
     defaultStrategy,
     reliabilityState: state.reliabilityStore.getState(),
     reliabilityConfig: state.config.reliability,
-    quota: state.quotaStore.getSnapshot(),
-    quotaConfig: state.config.quotaRouting,
   });
 
   const selectedKey = resolved.selected ? modelKey(resolved.selected) : undefined;
@@ -259,12 +271,13 @@ function writeAndReloadConfig(config: BifrostConfig, state: BifrostState): void 
     enabled: state.config.enabled ?? true,
     pinned: false,
     classifierEnabled: state.config.classifier?.enabled ?? true,
+    silent: state.config.silent ?? false,
   });
   state.enabled = runtimeState.enabled;
   state.pinned = runtimeState.pinned;
   state.classifierEnabled = runtimeState.classifierEnabled;
+  state.silent = runtimeState.silent;
   state.reliabilityStore.reload(state.config.reliability, process.cwd());
-  state.quotaStore.updateConfig(state.config.quotaRouting);
   state.invalidatePipeline();
 }
 
@@ -295,7 +308,7 @@ async function handleInit(
   let probeLoaded = false;
   let probeAge = "";
 
-  if (!discoveryEnabled && existsSync(probePath) && !statSync(probePath).isDirectory()) {
+  if (!discoveryEnabled && existsSync(probePath)) {
     try {
       const probeData = JSON.parse(readFileSync(probePath, "utf-8"));
       const probeStat = statSync(probePath);
@@ -696,6 +709,8 @@ export const BIFROST_COMMAND_OPTIONS: readonly CommandSpec[] = [
   { value: "off", description: "Disable routing" },
   { value: "pin", description: "Lock current model" },
   { value: "unpin", description: "Resume routing" },
+  { value: "silence", description: "Hide Bifrost output" },
+  { value: "unsilence", description: "Show Bifrost output" },
   { value: "reload", description: "Reload config after editing" },
   { value: "providers", description: "List available providers" },
   { value: "probe", description: "Probe models (optional --scoped and/or --free)" },
@@ -726,10 +741,11 @@ function formatBifrostCommandChoice(command: CommandSpec): string {
   return `/bifrost ${command.value}${hint} — ${command.description}`;
 }
 
-function dashboardCommands(state: Pick<BifrostState, "enabled" | "pinned">): CommandSpec[] {
+function dashboardCommands(state: Pick<BifrostState, "enabled" | "pinned" | "silent">): CommandSpec[] {
   const values = [
     state.enabled ? "off" : "on",
     state.pinned ? "unpin" : "pin",
+    state.silent ? "unsilence" : "silence",
     "preview",
     "providers",
     "probe",
@@ -785,6 +801,18 @@ export function createCommandRouter(
       clearBifrostWidgets(ctx);
       log(ctx, "Bifrost unpinned");
     }),
+    exact("silence", "Hide Bifrost output", (_, ctx) => {
+      state.silent = true;
+      state.saveModeState();
+      setBifrostSilent(ctx, true);
+      clearBifrostWidgets(ctx);
+    }),
+    exact("unsilence", "Show Bifrost output", (_, ctx) => {
+      state.silent = false;
+      state.saveModeState();
+      setBifrostSilent(ctx, false);
+      log(ctx, "Bifrost output enabled");
+    }),
     exact("reload", "Reload config after editing", (_, ctx) => {
       const done = debugMeasure("command", "reload");
       state.config = loadConfig(process.cwd(), state.extensionDir);
@@ -794,13 +822,15 @@ export function createCommandRouter(
         enabled: state.config.enabled ?? true,
         pinned: false,
         classifierEnabled: state.config.classifier?.enabled ?? true,
+        silent: state.config.silent ?? false,
       });
       state.enabled = runtimeState.enabled;
       state.classifierEnabled = runtimeState.classifierEnabled;
       state.pinned = runtimeState.pinned;
+      state.silent = runtimeState.silent;
+      setBifrostSilent(ctx, state.silent);
       state.cacheEntries = loadCache(cachePath(process.cwd(), state.config.cache?.path));
       state.reliabilityStore.reload(state.config.reliability, process.cwd());
-      state.quotaStore.updateConfig(state.config.quotaRouting);
       state.invalidatePipeline();
       syncBifrostModeStatus(ctx, state);
       clearBifrostWidgets(ctx);
@@ -982,6 +1012,7 @@ export function createCommandRouter(
         `enabled: ${state.enabled}`,
         `pinned: ${state.pinned}`,
         `classifierEnabled: ${state.classifierEnabled}`,
+        `silent: ${state.silent}`,
         `default: ${state.config.default}`,
         `strategy: ${state.config.strategy}`,
         `tiers: ${tiers.join(", ")}`,
@@ -1001,6 +1032,7 @@ export function createCommandRouter(
   ];
 
   return async (args: string, ctx: ExtensionContext) => {
+    setBifrostSilent(ctx, state.silent);
     const trimmed = args.trim();
     const sub = trimmed.toLowerCase();
 

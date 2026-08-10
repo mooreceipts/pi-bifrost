@@ -11,10 +11,10 @@ describe("storage", () => {
     const home = process.env.HOME;
     process.env.HOME = "/home/user";
     try {
-      assert.equal(resolveStoragePath(cwd, undefined, ".pi/state.json"), "/project/.pi/state.json");
+      assert.equal(resolveStoragePath(cwd, undefined, ".pi/state.json"), join(cwd, ".pi/state.json"));
       assert.equal(resolveStoragePath(cwd, "/var/lib/state.json", ".pi/state.json"), "/var/lib/state.json");
       assert.equal(resolveStoragePath(cwd, "~/state.json", ".pi/state.json"), "/home/user/state.json");
-      assert.equal(resolveStoragePath(cwd, "state.json", ".pi/state.json"), "/project/state.json");
+      assert.equal(resolveStoragePath(cwd, "state.json", ".pi/state.json"), join(cwd, "state.json"));
     } finally {
       process.env.HOME = home;
     }

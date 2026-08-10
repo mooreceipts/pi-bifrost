@@ -1,5 +1,7 @@
 tests/
-scripts/
+scripts/release.mjs
+scripts/ui-smoke.py
+scripts/__pycache__
 tsconfig.json
 .git/
 .github/
@@ -12,9 +14,3 @@ vscode/
 .amq-bridge/
 .amqrc
 .pi-subagents/
-AGENTS.md
-CONTEXT.md
-PRODUCT.md
-ROADMAP.md
-CHANGELOG.md
-examples/

@@ -94,7 +94,7 @@ The proposed "confidence-aware policy engine" expansion included 17 features. Se
 
 - **Weighted multi-dimensional scoring** (quality × cost × latency × reliability × context × suitability). Needs per-model quality scores from an eval harness we don't have. Until then the discrete `strategy` enum covers what we can measure today.
 - **Model suitability profiles.** Same dependency — needs quality scores.
-- **Quota-aware routing.** Needs per-provider quota telemetry; pi not an LLM gateway.
+- ~~**Quota-aware routing.**~~ **Shipped (local): `subscription_balance` strategy** — opt-in per-tier; reads weekly quota telemetry for Codex/Antigravity (provider auth under `~/.pi/agent/auth.json`), biases toward the subscription with the most allowance left, blocks paid OpenRouter while subscriptions are above `reservePercent`. Stale/missing data degrades to neutral, never blocks. Remains local because Pi still exposes no normalized quota API; telemetry is Bifrost-owned, not upstream.
 - **Shadow evaluation + automatic data-driven tuning.** Needs labelled routing data and an offline eval stack. Out of scope until a separate observability story lands.
 - **Routing analytics.** Overlaps with usage stats; defer the routing-quality analytics until stats ships.
 - **Token estimation + expected total-cost projection.** Token estimation alone is a small add; full cost projection requires output-token prediction which is rarely accurate enough to drive routing. Defer the projection; revisit estimation if a real need appears.

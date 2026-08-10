@@ -1,6 +1,6 @@
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { join } from "node:path";
-import { readFileSync, existsSync, writeFileSync, renameSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync } from "node:fs";
 
 // ── Quota telemetry for subscription-aware routing ─────────────────
 //
@@ -77,10 +77,7 @@ async function getCodexAccess(): Promise<{ token: string; accountId: string | nu
         if (json.refresh_token) codex.refresh = json.refresh_token;
         codex.expires = Date.now() + json.expires_in * 1000;
         try {
-          const authPath = join(getAgentDir(), "auth.json");
-          const tmpPath = authPath + ".tmp";
-          writeFileSync(tmpPath, JSON.stringify(auth, null, 2));
-          renameSync(tmpPath, authPath);
+          writeFileSync(join(getAgentDir(), "auth.json"), JSON.stringify(auth, null, 2));
         } catch {}
       }
     } catch {}
@@ -192,7 +189,7 @@ export class QuotaStore {
   /** Refresh only when the snapshot is older than refreshMinutes or empty. Never throws. */
   async refreshIfStale(now: number): Promise<void> {
     const refresh = this.cfg?.refreshMinutes ?? 30;
-    if (this.snapshot.fetchedAt > 0 &&
+    if (Object.keys(this.snapshot.byProvider).length > 0 &&
         now - this.snapshot.fetchedAt < refresh * 60_000) {
       return;
     }
@@ -215,10 +212,6 @@ export class QuotaStore {
       byProvider[provider] = { ...pinned };
     }
     this.snapshot = { byProvider, fetchedAt: Date.now() };
-  }
-
-  updateConfig(cfg: QuotaRoutingConfig | undefined): void {
-    this.cfg = cfg;
   }
 
   /** Test seam. */

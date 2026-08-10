@@ -41,11 +41,10 @@ type MinimalSessionPrompt = (
 export async function runProbe(
   ctx: ExtensionContext,
   onProgress?: (done: number, total: number, last: ProbeResult) => void,
-  promptWithSession?: MinimalSessionPrompt,
+  promptWithSession: MinimalSessionPrompt = promptWithMinimalSession,
   models?: Model<Api>[],
 ): Promise<{ results: ProbeResult[]; path: string }> {
   const available = models ?? ctx.modelRegistry.getAvailable();
-  const prompt = promptWithSession ?? promptWithMinimalSession;
   const total = available.length;
   const CONCURRENCY = 8;
   const results: ProbeResult[] = new Array(total);
@@ -55,7 +54,7 @@ export async function runProbe(
   async function worker() {
     while (cursor < total) {
       const i = cursor++;
-      results[i] = await probeOne(ctx, available[i], prompt);
+      results[i] = await probeOne(ctx, available[i], promptWithSession);
       completed++;
       onProgress?.(completed, total, results[i]);
     }

@@ -100,7 +100,7 @@ describe("resolveTestBinary", () => {
     }
   });
 
-  it("throws when explicit env is not executable", () => {
+  it("throws when explicit env is not executable", { skip: process.platform === "win32" }, () => {
     const tempDir = mkdtempSync(join(tmpdir(), "resolve-bin-"));
     const bin = join(tempDir, "not-executable");
     writeFileSync(bin, "#!/usr/bin/env bash\necho nope\n");

@@ -24,6 +24,7 @@ describe("config load", () => {
     try {
       const config = loadConfig(cwd, extensionDir);
       assert.equal(config.default, "general");
+      assert.equal(config.silent, false);
       assert.deepEqual(config.categoryStrategies, {
         quick: "random",
         general: "first",
@@ -53,6 +54,7 @@ describe("config load", () => {
     try {
       writeJson(join(extensionDir, "bifrost.json"), {
         enabled: false,
+        silent: true,
         default: "quick",
         strategy: "cheapest",
         categoryStrategies: { quick: "cheapest" },
@@ -70,6 +72,7 @@ describe("config load", () => {
 
       writeJson(join(cwd, "bifrost.json"), {
         enabled: true,
+        silent: false,
         strategy: "random",
         models: { frontier: ["cwd-frontier"] },
       });
@@ -81,6 +84,7 @@ describe("config load", () => {
 
       const config = loadConfig(cwd, extensionDir);
       assert.equal(config.enabled, true);
+      assert.equal(config.silent, false);
       assert.equal(config.default, "frontier");
       assert.equal(config.strategy, "random");
       assert.deepEqual(config.categoryStrategies, {

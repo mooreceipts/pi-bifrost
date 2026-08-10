@@ -72,6 +72,7 @@ function makeState(saveModeState: () => void = () => {}) {
     enabled: true,
     classifierEnabled: true,
     pinned: false,
+    silent: false,
     cacheEntries: [],
     reliabilityStore: makeStore(),
     extensionDir: ".",
@@ -85,6 +86,7 @@ describe("bifrost command ui", () => {
   it("surfaces command descriptions in autocomplete", () => {
     const items = getBifrostCommandCompletions("class") ?? [];
     assert(items.some((item) => item.value === "classifier status" && item.description === "Show classifier state"));
+    assert(getBifrostCommandCompletions("sil")?.some((item) => item.value === "silence"));
   });
 
   it("opens dashboard for root command", async () => {
@@ -97,7 +99,7 @@ describe("bifrost command ui", () => {
     const select = calls.find((call) => call.kind === "select");
     assert(select, "dashboard should open");
     assert.match(String(select?.title ?? ""), /Bifrost · on · model none/);
-    assert.equal(select?.options?.length, 8);
+    assert.equal(select?.options?.length, 9);
     assert((select?.options ?? []).some((option) => option.includes("Disable routing")));
     assert.equal(state.enabled, false);
   });
@@ -115,6 +117,24 @@ describe("bifrost command ui", () => {
     assert.equal(state.enabled, false);
     assert.equal(state.pinned, true);
     assert.equal(state.classifierEnabled, false);
+  });
+
+  it("silences and restores output", async () => {
+    const { ctx, calls } = makeCtx();
+    const state = makeState(() => calls.push({ kind: "save" }));
+    const dispatch = createCommandRouter(state as never);
+
+    await dispatch("silence", ctx as never);
+    const notificationsBeforePin = calls.filter((call) => call.kind === "notify").length;
+    await dispatch("pin", ctx as never);
+
+    assert.equal(state.silent, true);
+    assert.equal(calls.filter((call) => call.kind === "notify").length, notificationsBeforePin);
+
+    await dispatch("unsilence", ctx as never);
+    assert.equal(state.silent, false);
+    assert(calls.some((call) => call.kind === "notify" && String(call.value).includes("Bifrost output enabled")));
+    assert.equal(calls.filter((call) => call.kind === "save").length, 3);
   });
 
   it("shows picker for unknown subcommand", async () => {

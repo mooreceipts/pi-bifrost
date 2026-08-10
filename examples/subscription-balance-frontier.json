@@ -1,0 +1,27 @@
+{
+  "$schema": "../schema.json",
+  "_comment": "TEMPLATE: subscription-balanced frontier tier. Routes the frontier tier toward the subscription provider (Codex vs Antigravity) with the most weekly allowance remaining, and keeps paid OpenRouter candidates out of the running until subscriptions are drained. Enable quota telemetry via quotaRouting; provider keys must match your Pi registry (openai-codex, antigravity, openrouter/opencode).",
+  "enabled": true,
+  "default": "general",
+  "strategy": "first",
+  "categoryStrategies": {
+    "quick": "random",
+    "general": "first",
+    "frontier": "subscription_balance"
+  },
+  "models": {
+    "quick": ["provider/your-cheap-free-model"],
+    "general": ["provider/your-default-model"],
+    "frontier": [
+      "openai-codex/your-frontier-model",
+      "antigravity/your-frontier-model",
+      "opencode-go/your-paid-fallback-model"
+    ]
+  },
+  "quotaRouting": {
+    "reservePercent": 0.03,
+    "gamma": 3,
+    "staleMinutes": 15,
+    "refreshMinutes": 30
+  }
+}

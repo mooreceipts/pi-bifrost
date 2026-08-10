@@ -2,23 +2,43 @@
 
 All notable changes to pi-bifrost are documented here.
 
-## [0.1.1]
+## [0.1.2] - 10-08-2026
 
-### Fixed
-- `runProbe` now accepts optional `models` parameter — discovery-restricted probing (`--scoped`/`--free`) passes discovered models instead of probing entire registry
-- `QuotaStore.refreshIfStale` caches empty results — no longer re-fetches on every prompt when no subscription credentials exist
-- `resolveTierDisplay` passes quota snapshot and config to `resolveModelWithFallback` — `/bifrost preview` now shows correct model selection under `subscription_balance` strategy
-- `QuotaStore` config updated on `/bifrost reload` — `quotaRouting` changes (static provider overrides, refreshMinutes) take effect without restart
-- `billingClass` regex no longer matches `google`/`gemini` providers that QuotaStore doesn't track — untracked providers get neutral weight instead of being penalized
-- Auth token refresh writes `auth.json` atomically via temp file + rename — concurrent sessions no longer clobber each other's refresh tokens
+### Added
+- Silent mode configuration (`"silent": true`) to turn off all Pi console outputs and UI notifications while model routing remains active.
+- `/bifrost silence` and `/bifrost unsilence` slash subcommands.
+- Persisted `silent` state in `.pi/bifrost-state.json`.
 
-## [0.1.0]
+## [0.1.1] - 10-08-2026
+
+### Added
+- `subscription_balance` routing strategy: weighs Codex/Antigravity candidates by weekly subscription allowance remaining and keeps paid OpenRouter-compatible candidates blocked until measured subscriptions reach the configured reserve.
+- `quotaRouting` config (`reservePercent`, `gamma`, `staleMinutes`, `refreshMinutes`, optional provider overrides).
+- Local, credential-safe quota telemetry for Codex and Antigravity; only normalized fractions/reset times enter routing state.
+- Independent `/bifrost init --scoped`, `--free`, and combined discovery modes.
+- `/bifrost update --scoped|--free` reconciliation with source ownership metadata, deduplication, and safe removal of discovery-managed entries only.
+- Deterministic discovery and subscription-steering tests.
+- Subscription-balanced frontier example and explicit original-project attribution.
 
 ### Changed
-- Synced fork to upstream v0.3.13
-- Added `discovery.ts` (model discovery across scoped/free sources) and `quota.ts` (subscription-aware routing)
-- Fixed EISDIR error in `storage.ts` and `commands.ts` — directory guard on file reads
-- Single-prompt pin: manual model change pins for one prompt only, auto-unpins on submit
-- Model change notification overwrites same line instead of stacking
-- Rewrote README with fork attribution and disclaimer
-- Updated `.npmignore` for cleaner npm package
+- Repository metadata now targets `mooreceipts/pi-pifrost` while crediting original author Aamir and `iamaamir/pi-bifrost`.
+- Schema, README, ROADMAP, examples, generated init/update behavior, and package version updated for 1.0.0.
+
+## [0.2.0] - UNRELEASED
+
+### Added
+- Inline tier override via first-word detection (`frontier debug this`)
+- Config validation on startup (`validateConfig`)
+- Extracted `parseInlineOverride` for testability
+- User-facing config issue messages
+
+### Changed
+- Eliminated all `as unknown as` casts from production code
+- Config merge order: `.pi/bifrost.json` now wins over root `bifrost.json`
+
+## [0.1.7] - 2026-07-xx
+
+### Added
+- Direct model bindings via `"model": "provider/id"` in regex rules
+- `parseInlineOverride` extraction
+- Config validation

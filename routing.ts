@@ -1,7 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { getCircuitState, type ReliabilityConfig, type ReliabilityState } from "./reliability.ts";
-import type { ProviderQuota, QuotaRoutingConfig, QuotaSnapshot } from "./quota.ts";
+import type { QuotaRoutingConfig, QuotaSnapshot } from "./quota.ts";
 
 export type RoutingStrategy =
   | "first"
@@ -145,7 +145,9 @@ export type BillingClass = "subscription" | "free" | "paid-credit" | "unknown";
 export function billingClass(model: Model<Api>): BillingClass {
   if (modelCost(model) <= 0) return "free";
   const p = model.provider.toLowerCase();
-  if (/codex|antigravity/.test(p)) return "subscription";
+  if (p === "openai-codex" || p === "codex" || p === "antigravity") {
+    return "subscription";
+  }
   if (/openrouter|opencode/.test(p)) return "paid-credit";
   return "unknown";
 }
@@ -265,9 +267,9 @@ export function resolveHealthyModel(
   strategy: RoutingStrategy,
   reliabilityState: ReliabilityState | undefined,
   reliabilityConfig: ReliabilityConfig | undefined,
+  now = Date.now(),
   quota?: QuotaSnapshot,
   quotaConfig?: QuotaRoutingConfig,
-  now = Date.now(),
 ): HealthyModelResolution {
   const candidates = findCandidates(ctx, pattern);
   if (!reliabilityState || reliabilityConfig?.enabled === false) {
@@ -321,9 +323,9 @@ export function resolveModelWithFallback(
     options.requestedStrategy,
     options.reliabilityState,
     options.reliabilityConfig,
+    now,
     options.quota,
     options.quotaConfig,
-    now,
   );
   if (primary.selected) {
     return {
@@ -366,9 +368,9 @@ export function resolveModelWithFallback(
     options.defaultStrategy ?? options.requestedStrategy,
     options.reliabilityState,
     options.reliabilityConfig,
+    now,
     options.quota,
     options.quotaConfig,
-    now,
   );
 
   return {

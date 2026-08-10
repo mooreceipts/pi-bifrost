@@ -3,13 +3,14 @@ import { resolveStoragePath, readJsonFile, writeJsonFile } from "./storage.ts";
 /**
  * Runtime mode state that must survive extension reload and Pi restart.
  * Persisted separately from bifrost.json (config) so user runtime toggles
- * (`/bifrost on|off`, `/bifrost pin|unpin`, `/bifrost classifier on|off`)
- * are not clobbered by config reloads.
+ * (`/bifrost on|off`, `/bifrost pin|unpin`, `/bifrost classifier on|off`,
+ * `/bifrost silence|unsilence`) are not clobbered by config reloads.
  */
 export interface RuntimeModeState {
   enabled: boolean;
   pinned: boolean;
   classifierEnabled: boolean;
+  silent: boolean;
 }
 
 /**
@@ -20,12 +21,14 @@ export interface RuntimeModeState {
 export interface PersistedModeState {
   enabled: boolean;
   classifierEnabled: boolean;
+  silent: boolean;
 }
 
 export const DEFAULT_RUNTIME_STATE: RuntimeModeState = {
   enabled: true,
   pinned: false,
   classifierEnabled: true,
+  silent: false,
 };
 
 export function runtimeStatePath(cwd: string): string {
@@ -43,6 +46,7 @@ export function loadRuntimeState(path: string, fallback: RuntimeModeState = DEFA
         typeof parsed.classifierEnabled === "boolean"
           ? parsed.classifierEnabled
           : fallback.classifierEnabled,
+      silent: typeof parsed.silent === "boolean" ? parsed.silent : fallback.silent,
     };
   } catch (err) {
     console.error(`[bifrost] failed to load runtime state: ${err}`);

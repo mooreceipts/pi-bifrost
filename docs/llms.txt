@@ -1,13 +1,13 @@
-# Pi-Bifrost
+# Pi-Pifrost 1.0.0
 
 > Query-aware model routing extension for the Pi coding agent.
 
-Pi-Bifrost classifies prompts into configured tiers, selects an available model, and switches Pi's active model before sending. It is designed for predictable, inspectable routing with manual overrides and safe fallbacks.
+Pi-Pifrost classifies prompts into configured tiers, selects an available model, and switches Pi's active model before sending. It is designed for predictable, inspectable routing with manual overrides and safe fallbacks.
 
 ## Links
 
-- Landing page: https://iamaamir.github.io/pi-bifrost/
-- Source and documentation: https://github.com/iamaamir/pi-bifrost
+- Source and documentation: https://github.com/mooreceipts/pi-pifrost
+- Original project: https://github.com/iamaamir/pi-bifrost by Aamir
 - npm package: https://www.npmjs.com/package/pi-bifrost
 - License: https://opensource.org/license/mit
 
@@ -32,6 +32,8 @@ Initialize inside Pi:
 5. Pi activates the selected model before sending.
 
 Metadata-based routing does not require an additional model call. LLM classification is optional and may add tokens and latency on cache misses.
+
+The `subscription_balance` strategy uses normalized weekly quota telemetry to steer between Codex and Antigravity subscriptions before paid OpenRouter-compatible providers. `/bifrost init` and `/bifrost update` also support independent `--scoped` and `--free` discovery sources.
 
 ## Selection strategies
 

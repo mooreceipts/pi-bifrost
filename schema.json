@@ -10,6 +10,11 @@
       "description": "Enable or disable the model router. When disabled, all requests use the default model.",
       "default": true
     },
+    "silent": {
+      "type": "boolean",
+      "description": "Suppress Bifrost console output and UI notifications without disabling routing.",
+      "default": false
+    },
     "default": {
       "type": "string",
       "description": "Model tier to use when no rule matches and the classifier returns no category. Must match a key in 'models'.",

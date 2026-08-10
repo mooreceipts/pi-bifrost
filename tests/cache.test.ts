@@ -137,7 +137,7 @@ describe("cache", () => {
 
   describe("cachePath", () => {
     it("defaults to .pi/bifrost-cache.jsonl under cwd", () => {
-      assert.equal(cachePath("/project"), "/project/.pi/bifrost-cache.jsonl");
+      assert.equal(cachePath("/project"), join("/project", ".pi", "bifrost-cache.jsonl"));
     });
 
     it("expands leading tilde", () => {
@@ -151,7 +151,7 @@ describe("cache", () => {
     });
 
     it("joins relative path to cwd", () => {
-      assert.equal(cachePath("/project", "cache.jsonl"), "/project/cache.jsonl");
+      assert.equal(cachePath("/project", "cache.jsonl"), join("/project", "cache.jsonl"));
     });
   });
 

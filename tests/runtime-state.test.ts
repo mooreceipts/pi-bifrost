@@ -16,7 +16,7 @@ describe("runtime state", () => {
     const cwd = mkdtempSync(join(tmpdir(), "bifrost-runtime-state-"));
     try {
       const path = runtimeStatePath(cwd);
-      const state: PersistedModeState = { enabled: false, classifierEnabled: false };
+      const state: PersistedModeState = { enabled: false, classifierEnabled: false, silent: true };
       saveRuntimeState(path, state);
       // pinned is ephemeral — always false on load regardless of file
       const loaded = loadRuntimeState(path);
@@ -30,7 +30,7 @@ describe("runtime state", () => {
     const cwd = mkdtempSync(join(tmpdir(), "bifrost-runtime-state-"));
     try {
       const path = runtimeStatePath(cwd);
-      const fallback: RuntimeModeState = { enabled: false, pinned: true, classifierEnabled: false };
+      const fallback: RuntimeModeState = { enabled: false, pinned: true, classifierEnabled: false, silent: true };
       assert.deepEqual(loadRuntimeState(path, fallback), fallback);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
@@ -43,7 +43,7 @@ describe("runtime state", () => {
       const path = runtimeStatePath(cwd);
       mkdirSync(join(cwd, ".pi"), { recursive: true });
       writeFileSync(path, "{not json", "utf8");
-      const fallback: RuntimeModeState = { enabled: true, pinned: true, classifierEnabled: false };
+      const fallback: RuntimeModeState = { enabled: true, pinned: true, classifierEnabled: false, silent: true };
       assert.deepEqual(loadRuntimeState(path, fallback), fallback);
     } finally {
       rmSync(cwd, { recursive: true, force: true });

@@ -1,6 +1,7 @@
 {
   "$schema": "./schema.json",
   "enabled": true,
+  "silent": false,
   "default": "general",
   "strategy": "first",
 

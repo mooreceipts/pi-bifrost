@@ -1,30 +1,22 @@
-# Pi-Bifrost
+# Bifrost
 
-Query-aware model routing extension for [Pi](https://pi.dev). Classifies prompts by complexity and switches Pi's active model before generation starts.
+![Pi-Bifrost social card](docs/social-card.png)
 
-> **Fork of [iamaamir/pi-bifrost](https://github.com/iamaamir/pi-bifrost)** by [Aamir](https://github.com/iamaamir). Original work licensed MIT.
-
-> **Disclaimer:** This fork is a personal project published for posterity and sharing purposes only. No warranties or guarantees of any kind are provided. Use at your own risk.
-
-## What it does
-
-Bifrost intercepts each prompt and routes it to a configured model tier (`quick`, `general`, `frontier`) based on regex rules, cached classifications, or an optional LLM classifier. It performs a native model switch — Pi uses the selected provider/model for the entire turn.
+Pi-Pifrost 1.0.0 is **native model routing for [Pi](https://pi.dev)**. Before generation starts, it switches Pi's actual active model to one from your configuration.
 
 ```text
-"summarize this file"         -> quick model
-"debug this race condition"   -> frontier model
+"summarize this file"         → your quick model
+"debug this race condition"   → your frontier model
 ```
 
-If a model fails repeatedly, a persistent circuit breaker opens and routes future prompts to healthy alternatives. Bifrost never silently replays a failed prompt.
+**Why it is different:**
 
-## Differences from upstream
-
-This fork adds:
-
-- **Model discovery** (`discovery.ts`) — scans scoped and free-tier model sources, deduplicates, guesses tiers, and reconciles against existing config
-- **Subscription quota routing** (`quota.ts`) — fetches weekly quota for OpenAI Codex and Google Antigravity providers; `subscription_balance` strategy weights candidates by remaining allowance, draining subscriptions before paid OpenRouter
-- **EISDIR fix** (`storage.ts`, `commands.ts`) — `readTextFile` now guards against directories passed as file paths, preventing `EISDIR: illegal operation on a directory, read` errors
-- **Expanded routing strategies** — `subscription_balance` joins existing strategies (`cheapest`, `first`, `random`, etc.)
+- **Native model switch** — Pi uses selected provider/model for turn, not a virtual profile or prompt-side delegation.
+- **Persistent circuit breaker** — repeated probe, activation, and stream failures survive restart; one half-open trial controls recovery.
+- **No automatic replay** — Bifrost routes future prompts around uncertain failures. It never silently repeats edits, commands, or external side effects.
+- **Inspectable control** — preview route, pin current model, or force a tier for one message.
+- **Model-agnostic setup** — `/bifrost init` probes supported models available through Pi, then proposes tier lists without hardcoded maintainer model IDs.
+- **Host-real verification** — unit tests, Pi TUI smoke tests, and fake-provider SSE E2E cover routing and reliability behavior.
 
 ## Install
 
@@ -32,102 +24,249 @@ This fork adds:
 pi install npm:pi-bifrost
 ```
 
-From source:
+Or install this fork from source:
 
 ```bash
-pi install git:github.com/mooreceipts/pi-bifrost
+pi install git:github.com/mooreceipts/pi-pifrost
 ```
 
-Original upstream:
+## Attribution
 
-```bash
-pi install git:github.com/iamaamir/pi-bifrost
-```
+Pi-Pifrost is a fork and continuation of [Pi-Bifrost](https://github.com/iamaamir/pi-bifrost), originally created by [Aamir (`@iamaamir`)](https://github.com/iamaamir). Original architecture, routing foundation, reliability work, documentation, and project identity remain credited to that project and author.
+
+This fork adds subscription-aware model steering, independent `--scoped` / `--free` model discovery, and related tests/documentation. Repository branding is Pi-Pifrost; npm package name remains `pi-bifrost` for compatibility. See [NOTICE.md](NOTICE.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ## Setup
+
+Run this once:
 
 ```
 /bifrost init
 ```
 
-Probes every available model, finds working ones, and writes a config. Bifrost routes prompts after that.
+It probes every model you have access to, finds the ones that actually work, and writes a config. Say yes when asked.
+
+Limit discovery when needed:
+
+```text
+/bifrost init --scoped          # Pi /scoped-models selection only
+/bifrost init --free            # current OpenRouter free tier only
+/bifrost init --scoped --free   # deterministic union
+/bifrost update --scoped --free # preview and reconcile managed entries
+```
+
+Discovery commands refresh Pi's registry first. `--scoped` uses `ctx.scopedModels`, resolved from Pi's `enabledModels` setting or `--models` flag. `--free` identifies OpenRouter from provider metadata and free-tier models from zero-cost registry metadata. Add `--write` for non-interactive writes.
+
+Done. Bifrost is now routing your prompts.
+
+## Looking for fun ways to use Bifrost?
+
+[Bifrost Patterns](https://github.com/iamaamir/bifrost-pattern) explores what happens after Bifrost picks a model for one turn:
+
+- send scouts, implementers, and reviewers through different routes;
+- turn repository onboarding into an evidence-backed walkthrough;
+- compare configured models before proposing routing tiers;
+- keep work local, inspectable, and replay-free.
+
+Patterns is a playground on top of Bifrost, not required infrastructure.
+
+## What it does
+
+Bifrost first applies direct rules and recent classification-cache matches. If needed, regex rules or optional LLM classification choose a configured tier such as `quick`, `general`, or `frontier`. One policy then selects a matching Pi model by list order, cost, context window, or random choice. Pi switches before your prompt is sent.
+
+You stay in control: run `/bifrost preview <prompt>` to inspect a decision, prefix one prompt with a tier name to force it, or use `/bifrost pin` after switching models manually.
+
+If a model repeatedly fails (probe timeout, auth error, provider stream failure), Bifrost opens its circuit and routes future prompts to other candidates until cooldown and a recovery trial. It never reruns your failed prompt automatically.
 
 ## Commands
 
 | Command | What it does |
 |---------|-------------|
-| `/bifrost` | Dashboard with mode/model status |
-| `/bifrost init` | Probe models and generate config |
-| `/bifrost init --scoped --free` | Init with model discovery from scoped/free sources |
-| `/bifrost probe` | Test which models respond |
-| `/bifrost preview <prompt>` | Inspect routing decision without sending |
+| `/bifrost` | Open mode/model dashboard and quick actions |
+| `/bifrost init [--scoped] [--free] [--write]` | Probe selected discovery sources and generate config |
+| `/bifrost update --scoped/--free [--write]` | Preview and reconcile discovery-managed models while preserving manual entries |
+| `/bifrost probe [--scoped] [--free]` | Test which selected models actually respond |
+| `/bifrost preview <prompt>` | See what would happen without sending |
 | `/bifrost on` / `off` | Enable / disable routing |
 | `/bifrost pin` / `unpin` | Lock current model / resume routing |
-| `/bifrost reload` | Reload config from disk |
-| `/bifrost cache stats` / `clear` | Inspect or clear classification cache |
-| `/bifrost classifier on` / `off` / `status` | Toggle LLM classifier |
+| `/bifrost silence` / `unsilence` | Hide / restore Bifrost console output and UI notifications |
+| `/bifrost reload` | Reload config after editing |
+| `/bifrost cache stats` | Show classification cache |
+| `/bifrost cache clear` | Clear classification cache |
+| `/bifrost classifier on` / `off` / `status` | Enable / disable LLM classifier, or show state; toggles persist to `.pi/bifrost-state.json` |
+
+## UI smoke test
+
+Run `npm run test:ui` to capture Pi TUI screenshots for startup, dashboard, preview, disabled, classify, and pinned states. Output lands in `screenshots/ui-smoke/`.
+
+```bash
+npm test                # unit tests
+npm run test:integration  # integration tests
+npm run test:ui         # Pi TUI smoke tests
+npm run test:ui:reliability  # self-contained reliability E2E (fake provider)
+npm run release         # publish release
+```
+
+UI backlog and priorities: [`docs/ui-enhancements.md`](docs/ui-enhancements.md).
 
 ## Config
 
-Config merges from four layers (later wins):
+Config is supported at multiple paths with this precedence (later wins):
 
 1. Extension default (`<extensionDir>/bifrost.json`)
 2. Global (`~/.pi/agent/bifrost.json`)
 3. Project root (`bifrost.json`)
 4. Project config (`.pi/bifrost.json`)
 
+Editor autocomplete works in VS Code, Zed, Cursor.
+
 ### Tiers and models
+
+The default config ships with three tiers. Run `/bifrost init` to populate them from your Pi registry, or edit the arrays manually.
 
 ```json
 {
   "models": {
-    "quick": ["opencode/deepseek-v4-flash-free"],
-    "general": ["opencode-go/deepseek-v4-pro", "openai-codex/gpt-5.4-mini"],
-    "frontier": ["openai-codex/gpt-5.6-sol"]
+    "quick": [
+      "opencode/deepseek-v4-flash-free",
+      "opencode/mimo-v2.5-free"
+    ],
+    "general": [
+      "opencode-go/deepseek-v4-pro",
+      "opencode-go/glm-5.2",
+      "openai-codex/gpt-5.4-mini"
+    ],
+    "frontier": [
+      "openai-codex/gpt-5.6-sol",
+      "opencode-go/glm-5.2",
+      "opencode-go/deepseek-v4-pro"
+    ]
   }
 }
 ```
 
-Use `provider/id` for exact match or a substring like `qwen` for pattern match.
+Each tier has a list of model patterns. `provider/id` for exact, or just `qwen` for substring match.
 
 ### Strategies
 
+How Bifrost picks from the list. Set globally or per-tier:
+
 | Strategy | Picks |
 |----------|-------|
-| `cheapest` | Lowest total cost |
-| `cheapest_input` / `cheapest_output` | Lowest input or output cost |
+| `cheapest` | Lowest cost (input + output) |
+| `cheapest_input` | Lowest input cost |
+| `cheapest_output` | Lowest output cost |
 | `largest_context` | Biggest context window |
 | `random` | Random pick |
-| `first` / `fastest` | First in list |
-| `subscription_balance` | Weighted by remaining weekly quota (this fork) |
+| `first` / `fastest` | First in list (init sorts by speed) |
+| `subscription_balance` | Weights subscription providers (Codex, Antigravity) by weekly quota remaining; paid OpenRouter candidates blocked while any subscription has allowance above `reservePercent` |
+
+### Quota-aware routing
+
+`subscription_balance` reads weekly quota telemetry for subscription providers and biases the pick toward whichever has the most allowance left. Paid OpenRouter-compatible hubs (OpenRouter, opencode) sit out until subscriptions are drained — so subscription value is used up before any credit spend.
+
+```json
+{
+  "categoryStrategies": { "frontier": "subscription_balance" },
+  "quotaRouting": {
+    "reservePercent": 0.03,
+    "gamma": 3,
+    "staleMinutes": 15,
+    "refreshMinutes": 30
+  }
+}
+```
+
+- `reservePercent` (default `0.03`): fraction at which a subscription counts as drained and credits unlock.
+- `gamma` (default `3`): exponent on remaining-fraction — higher favors the heavier side harder; near equilibrium the weights converge toward even.
+- `staleMinutes`/`refreshMinutes`: snapshot freshness/refresh cadence.
+
+Telemetry comes from the provider auth under `~/.pi/agent/auth.json` (no new key needed) and is cached in memory. Stale or missing data degrades to neutral routing — it never blocks a model. Weight formula: `weight = weeklyRemainingFraction ^ gamma`; drained subscriptions keep a tiny floor (`0.05`).
+
+```json
+{
+  "strategy": "first",
+  "categoryStrategies": {
+    "quick": "random",
+    "general": "first",
+    "frontier": "first"
+  }
+}
+```
 
 ### Routing rules
 
-Regex patterns mapping prompts to tiers. First match wins. Case insensitive.
+Regex patterns that map prompts to tiers. First match wins. Case insensitive.
 
 ```json
 {
   "rules": [
-    { "pattern": "\\bcommit\\b", "model": "quick" },
-    { "pattern": "\\b(debug|stack trace|crash)\\b", "model": "frontier" }
+    {
+      "pattern": "(^|\\s)\\/?commit(?:\\s|$)|\\b(commit message|conventional commit)\\b",
+      "model": "quick"
+    },
+    {
+      "pattern": "(^|\\s)\\/?format(?:\\s|$)|\\b(format this json|format this code)\\b",
+      "model": "quick"
+    },
+    {
+      "pattern": "(^|\\s)\\/?test(?:\\s|$)|\\b(unit tests?|integration tests?|e2e tests?)\\b",
+      "model": "general"
+    },
+    {
+      "pattern": "(^|\\s)\\/?debug(?:\\s|$)|\\b(stack trace|crash|memory leak|flaky test)\\b",
+      "model": "frontier"
+    },
+    {
+      "pattern": "(^|\\s)\\/?arch(?:\\s|$)|\\b(system architecture|api design|migration strategy)\\b",
+      "model": "frontier"
+    },
+    {
+      "pattern": "\\b(review this code|code review|audit this code)\\b",
+      "model": "frontier"
+    }
   ]
 }
 ```
 
-Direct model bindings: use `provider/id` instead of a tier name to bypass tier selection.
+Rules can also live in a separate `.pi/bifrost-routes.json` file or a root-level `bifrost-routes.json` — `.pi/bifrost-routes.json` takes precedence.
+
+### Direct model bindings
+
+Instead of a tier name, use a model reference (`provider/id`) — the matched prompt routes directly to that exact model, bypassing tier selection entirely.
+
+```json
+{
+  "rules": [
+    {
+      "pattern": "\\bcommit\\b",
+      "model": "opencode-go/glm-5.1"
+    },
+    {
+      "pattern": "\\btest\\b",
+      "model": "opencode/deepseek-v4-flash-free"
+    }
+  ]
+}
+```
+
+Useful for `/commit`, `/test`, `/explain` — any pattern where you want a specific model every time. The value must contain `/` to be treated as a direct reference.
 
 ### Inline override
 
-Type a tier name as first word to force it for one message:
+Type a tier name as the first word to force that tier for one message. No config change needed.
 
 ```
 frontier debug this race condition
 quick summarize this
+frontier implement the auth module
 ```
+
+The tier name is stripped before routing — the rest goes to your prompt clean.
 
 ### Classifier
 
-Optional LLM classifier for more accurate routing than regex alone:
+An LLM that reads your prompt and picks a tier. More accurate than regex, costs a few tokens. Uses a cheap model — you configure which one.
 
 ```json
 {
@@ -138,28 +277,57 @@ Optional LLM classifier for more accurate routing than regex alone:
 }
 ```
 
-Falls back to regex rules on failure.
+If the classifier fails or is disabled, regex rules take over. Successful LLM classifier results enter the local classification cache, so similar repeat prompts can skip another classifier call.
 
-### Quota routing (this fork)
-
-Routes based on subscription quota remaining for Codex and Antigravity:
+### Debug logging
 
 ```json
 {
-  "quotaRouting": {
-    "reservePercent": 0.03,
-    "gamma": 3,
-    "staleMinutes": 15,
-    "refreshMinutes": 30
-  }
+  "debug": { "enabled": true }
 }
 ```
 
-Drains subscription allowances (OpenAI Codex, Google Antigravity) before falling back to paid providers. Config changes apply on `/bifrost reload` without restart.
+Writes `.pi/bifrost-debug.jsonl` — one JSON line per event with routing reason, selected tier/model, and timing. It does not store prompt bodies. Useful for understanding what Bifrost is doing.
 
-### Reliability
+### Full config reference
 
-Circuit breaker for flaky models:
+```json
+{
+  "$schema": "../pi-bifrost/schema.json",
+  "enabled": true,
+  "silent": false,
+  "default": "general",
+  "strategy": "first",
+  "categoryStrategies": { "quick": "cheapest", "general": "first", "frontier": "first" },
+  "models": { ... },
+  "rules": [ ... ],
+  "classifier": {
+    "enabled": true,
+    "model": "...",
+    "method": "auto",
+    "maxTokens": 20,
+    "temperature": 0,
+    "fallbackToRegex": true,
+    "systemPrompt": "..."
+  },
+  "cache": {
+    "enabled": true,
+    "maxEntries": 500,
+    "threshold": 0.85
+  },
+  "reliability": {
+    "enabled": true,
+    "failureThreshold": 3,
+    "windowMinutes": 5,
+    "cooldownMinutes": 60
+  },
+  "debug": { "enabled": false }
+}
+```
+
+### Reliability: circuit breaker for flaky models
+
+Tracks model health across probe results and runtime failures. Models that fail repeatedly are temporarily skipped (circuit open) and Bifrost falls back to the default tier.
 
 ```json
 {
@@ -172,23 +340,73 @@ Circuit breaker for flaky models:
 }
 ```
 
-Opens circuit after repeated failures, auto-recovers after cooldown with a single trial request.
+**How it works:**
+- Records failures from probe timeouts, `setModel` auth errors, and provider stream errors
+- Opens circuit after `failureThreshold` failures within `windowMinutes`
+- Open-circuit models are excluded from routing; Bifrost falls back to default tier
+- Circuit closes automatically after `cooldownMinutes` — next request attempts a trial
+- Successful trial closes the circuit; repeated failure doubles cooldown
+- State persists in `.pi/bifrost-reliability.json`
+- Disabled reliability (`"enabled": false`) is a clean no-op — no tracking, no persistence
 
-## Testing
+The dashboard shows open-circuit count in the title. `/bifrost preview` and `/bifrost debug` display skipped candidates with remaining cooldown.
 
-```bash
-npm test                       # unit tests
-npm run test:integration       # integration tests
-npm run test:ui                # Pi TUI smoke tests
-npm run test:ui:reliability    # reliability E2E with fake provider
+See [`examples/economical-frontier-reliability.json`](examples/economical-frontier-reliability.json) for a complete config.
+
+## Pin vs Enable
+
+| Control | Persists | Survives restart | Inherits to subagents |
+|---------|----------|-----------------|----------------------|
+| `/bifrost on` / `off` | Yes (state file) | Yes | Yes — children inherit policy |
+| `/bifrost pin` / `unpin` | No (session-local) | No | No — children always route |
+| `/bifrost silence` / `unsilence` | Yes (state file) | Yes | Yes — children inherit output policy |
+
+**`enabled`** is a policy toggle. When routing is off, no model switching happens for anyone sharing that state. Subagents inherit it.
+
+**`pinned`** is a session preference. It locks the current model for the active session only. It is not written to disk and does not propagate to children. Subagents start with `pinned: false` and route independently.
+
+**`silent`** is an output policy. It suppresses Bifrost console output and UI notifications without disabling routing or hiding the footer status. Set it in config or toggle it with `/bifrost silence` and `/bifrost unsilence`.
+
+This means an orchestrator can pin a model for itself while its subagents still route through bifrost — each child picks the best model for its own task.
+
+See [ADR 0015](docs/adr/0015-pinned-ephemeral.md) for the design rationale.
+
+## FAQ
+
+### What does Bifrost's local cache store?
+
+Bifrost maintains a **local routing-classification cache**. After a successful LLM classification, it stores a normalized prompt and its selected tier. Similar future prompts can reuse that tier and skip the classifier call. It does not store model answers.
+
+The project-local cache is `.pi/bifrost-cache.jsonl`. Entries contain lowercased, punctuation-stripped, sorted prompt words, selected tier, last-use timestamp, and hit count. Default limit is 500 entries; entries use exact matching first, then token-set similarity (default threshold `0.85`) and are evicted least-recently-used first. Use `/bifrost cache stats` to inspect it or `/bifrost cache clear` to remove it.
+
+### Do I need multiple models?
+
+No. One healthy configured model is enough to start. Multiple models and tiers let Bifrost choose different candidates for routine, general, and demanding work. `/bifrost init` shows its proposed configuration before it writes anything.
+
+### Does Bifrost cache assistant responses, tool output, or prompts for replay?
+
+No. Repository state, tool output, and user intent can change even when prompt text is similar. Bifrost does not reuse old assistant responses or automatically replay a failed prompt; that could repeat edits, commands, or external side effects.
+
+### What about provider prompt caching?
+
+Provider prompt/prefix caching is managed by Pi and each model provider. Bifrost does not claim a universal prompt-cache implementation. It routes before the turn; providers decide whether a request qualifies for their own caching and billing behavior.
+
+### What is stored locally, and can I disable it?
+
+Classification-cache entries contain normalized prompt words, chosen tier, last-use timestamp, and hit count. Normalized prompts can still contain sensitive terms, so disable it for sensitive projects or move it with `cache.path`:
+
+```json
+{
+  "cache": {
+    "enabled": false
+  }
+}
 ```
 
-## Credits
+Clear the cache after substantial tier/rule changes if you want every prompt classified fresh.
 
-Original author: [Aamir](https://github.com/iamaamir) — [iamaamir/pi-bifrost](https://github.com/iamaamir/pi-bifrost)
+### What happens if a model fails?
 
-Companion project: [Bifrost Patterns](https://github.com/iamaamir/bifrost-pattern) — multi-model orchestration patterns built on Bifrost.
+Bifrost records probe, activation, and settled stream failures in `.pi/bifrost-reliability.json`. After repeated failures, it opens that model's circuit and routes future prompts to healthy candidates. After cooldown, exactly one half-open trial can prove recovery. Bifrost does not silently rerun the failed prompt.
 
-## License
-
-MIT — see original repository for full license text.
+Every field is optional. Config merges from: extension default → global (`~/.pi/agent/bifrost.json`) → project root (`bifrost.json`) → project config (`.pi/bifrost.json`).

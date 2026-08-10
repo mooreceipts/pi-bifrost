@@ -28,6 +28,7 @@ export interface ClassifierConfig {
 
 export interface BifrostConfig {
   enabled?: boolean;
+  silent?: boolean;
   default?: string;
   strategy?: RoutingStrategy;
   categoryStrategies?: Record<string, RoutingStrategy>;
@@ -302,6 +303,7 @@ export function loadConfig(
 ): BifrostConfig {
   const base: BifrostConfig = {
     enabled: true,
+    silent: false,
     default: "general",
     strategy: "first",
     categoryStrategies: {
