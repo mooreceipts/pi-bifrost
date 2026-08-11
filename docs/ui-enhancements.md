@@ -44,7 +44,7 @@ Inventory of user-facing extension improvements. Ordered by user value, then imp
 | Done | Built-in working row | Probe/refresh/preview/benchmark show work | No custom spinner needed. |
 | Done | Probe progress widget | Counts/errors/recent models | Remove at completion. |
 | Next | Probe summary card | Health counts, duration, report age/path, retry | Compact default; drill-down optional. |
-| Next | Init review screen | Compare proposal before config write | Highlight uncategorized/overwrite impact. |
+| Next | Init review screen | Compare proposal before config write | Show tier assignment details and any model overwrites. |
 | Done | Preview/benchmark result viewer | Scrollable tier/source/model/alternatives/costs | Ephemeral overlay; full output remains reachable with ↑↓/jk. |
 | Next | Benchmark comparison | Sort/filter candidate metadata | Never run models for this view. |
 | Next | Result lifecycle | Pin, dismiss, copy, rerun | Prevent stale widgets covering editor. |

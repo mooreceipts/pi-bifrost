@@ -31,30 +31,67 @@ function openRouterSlug(key: string): string {
   return key.slice(key.indexOf("/") + 1);
 }
 
+export const FREE_MODEL_LIMIT = 5;
+
 /**
- * Sort quick-tier models: non-free first (by context window desc),
- * then free by collection rank, then free not in collection last.
+ * Sort a tier's models in place: non-free first, then free. Non-free
+ * models are ordered by probe duration ascending (missing = Infinity —
+ * probe speed is the measured signal, not context window). Free models
+ * are ordered by collection rank ascending (unranked = Infinity), tied
+ * on probe duration ascending; when `ranking` is null, free models fall
+ * back to probe duration ascending too.
  */
-export function applyCollectionSort(
+export function sortTierModels(
   models: string[],
-  ranking: CollectionRanking,
+  ranking: CollectionRanking | null,
   freeKeys: ReadonlySet<string>,
-  contextWindowByKey?: Map<string, number>,
+  durationByKey: Map<string, number>,
 ): void {
   models.sort((a, b) => {
     const aFree = freeKeys.has(a);
     const bFree = freeKeys.has(b);
 
-    if (!aFree && !bFree) {
-      const ctxA = contextWindowByKey?.get(a) ?? 0;
-      const ctxB = contextWindowByKey?.get(b) ?? 0;
-      return ctxB - ctxA;
-    }
-    if (!aFree) return -1;
-    if (!bFree) return 1;
+    if (aFree !== bFree) return aFree ? 1 : -1;
 
+    const durationA = durationByKey.get(a) ?? Infinity;
+    const durationB = durationByKey.get(b) ?? Infinity;
+
+    if (!aFree) return durationA - durationB;
+
+    if (!ranking) return durationA - durationB;
     const rankA = ranking.get(openRouterSlug(a)) ?? Infinity;
     const rankB = ranking.get(openRouterSlug(b)) ?? Infinity;
-    return rankA - rankB;
+    if (rankA !== rankB) return rankA - rankB;
+    return durationA - durationB;
   });
+}
+
+/**
+ * Cap discovered free models to the top `limit`, verified-only.
+ * Ranked by collection rank ascending (unranked = Infinity), tied on
+ * probe duration ascending; when `ranking` is null, sorted purely by
+ * probe duration ascending.
+ */
+export function capFreeModels<T>(
+  freeModels: T[],
+  keyOf: (m: T) => string,
+  verifiedKeys: ReadonlySet<string>,
+  ranking: CollectionRanking | null,
+  durationByKey: Map<string, number>,
+  limit = FREE_MODEL_LIMIT,
+): T[] {
+  const verified = freeModels.filter((m) => verifiedKeys.has(keyOf(m)));
+  const sorted = [...verified].sort((a, b) => {
+    const keyA = keyOf(a);
+    const keyB = keyOf(b);
+    const durationA = durationByKey.get(keyA) ?? Infinity;
+    const durationB = durationByKey.get(keyB) ?? Infinity;
+
+    if (!ranking) return durationA - durationB;
+    const rankA = ranking.get(openRouterSlug(keyA)) ?? Infinity;
+    const rankB = ranking.get(openRouterSlug(keyB)) ?? Infinity;
+    if (rankA !== rankB) return rankA - rankB;
+    return durationA - durationB;
+  });
+  return sorted.slice(0, limit);
 }

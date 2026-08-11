@@ -35,9 +35,17 @@ Metadata-based routing does not require an additional model call. LLM classifica
 
 The `subscription_balance` strategy uses normalized weekly quota telemetry to steer between Codex and Antigravity subscriptions before paid OpenRouter-compatible providers. `/bifrost init` and `/bifrost update` also support independent `--scoped` and `--free` discovery sources.
 
+## Tier assignment
+
+Tiers are assigned by model cost and context window:
+
+- **Subscription providers** (Codex, Antigravity): context window ≥ 200k = frontier; ≥ 64k = general; else quick.
+- **Free models** (all models with zero cost): context window ≥ 200k = general; else quick.
+- **Paid models**: cost thresholds — input+output > $5/1M = frontier; < $1/1M = quick; else general.
+
 ## Selection strategies
 
-Supported strategies include `cheapest`, `cheapest_input`, `cheapest_output`, `largest_context`, `random`, `first`, and `fastest`.
+Supported strategies include `cheapest`, `cheapest_input`, `cheapest_output`, `largest_context`, `random`, `first`, `fastest`, and `subscription_balance`. The default is `first`, which selects the first available model in each tier's candidate list (ordered by probe response time for non-free models, then collection ranking for free models).
 
 ## Controls
 

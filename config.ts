@@ -307,7 +307,7 @@ export function loadConfig(
     default: "general",
     strategy: "first",
     categoryStrategies: {
-      quick: "random",
+      quick: "first",
       general: "first",
       frontier: "first",
     },

@@ -23,7 +23,7 @@ export interface ProbeResult {
 const PROBE_PROMPT = "1+1=";
 export const PROBE_PROMPT_TEXT = PROBE_PROMPT;
 const PROBE_TIMEOUT_MS = 10_000;
-const PROBE_MAX_TOKENS = 5;
+const PROBE_MAX_TOKENS = 16;
 
 function assistantText(message: { content: Array<{ type: string; text?: string }> }): string {
   return message.content

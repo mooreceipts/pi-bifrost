@@ -6,7 +6,7 @@
   "strategy": "first",
 
   "categoryStrategies": {
-    "quick": "random",
+    "quick": "first",
     "general": "first",
     "frontier": "first"
   },

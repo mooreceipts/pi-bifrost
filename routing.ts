@@ -496,18 +496,35 @@ export function classify(text: string, rules: readonly RouteRule[]): string | un
 // ── Tier heuristics ───────────────────────────────────────────
 
 /**
- * Cost thresholds for tier assignment during `/bifrost init`.
- * Models with cost above FRONTIER are suggested as frontier;
- * below QUICK as quick; everything in between as general. Anything
- * still uncategorized the user assigns manually. No name-based
- * guessing — naming conventions change; cost is the stable signal.
+ * Tier assignment during `/bifrost init`, using billing class plus
+ * cost/context signals. Listed cost is meaningless for subscription
+ * providers (Codex/Antigravity), so those are tiered by context window
+ * instead. Free models (cost <= 0) have no cost signal either, so they
+ * are also tiered by context window. Everything else (paid) keeps the
+ * original cost-threshold behavior. No name-based guessing — naming
+ * conventions change; billing class + cost/context is the stable signal.
  */
 const FRONTIER_COST_THRESHOLD = 5; // $/1M tokens (input + output)
 const QUICK_COST_THRESHOLD = 1;
+const SUBSCRIPTION_FRONTIER_CONTEXT = 200_000;
+const SUBSCRIPTION_GENERAL_CONTEXT = 64_000;
+const FREE_GENERAL_CONTEXT = 200_000;
 
-/** Assign a model to a tier based solely on token cost. */
-export function guessTier(model: Model<Api>): "frontier" | "general" | "quick" | undefined {
-  const cost = (model.cost?.input ?? 0) + (model.cost?.output ?? 0);
+/** Assign a model to a tier based on billing class, cost, and context window. */
+export function guessTier(model: Model<Api>): "frontier" | "general" | "quick" {
+  const contextWindow = model.contextWindow ?? 0;
+  const cost = model.cost ? modelCost(model) : 0;
+  const cls: BillingClass = model.cost ? billingClass(model) : "free";
+
+  if (cls === "subscription") {
+    if (contextWindow >= SUBSCRIPTION_FRONTIER_CONTEXT) return "frontier";
+    if (contextWindow >= SUBSCRIPTION_GENERAL_CONTEXT) return "general";
+    return "quick";
+  }
+  if (cls === "free") {
+    if (contextWindow >= FREE_GENERAL_CONTEXT) return "general";
+    return "quick";
+  }
   if (cost > FRONTIER_COST_THRESHOLD) return "frontier";
   if (cost < QUICK_COST_THRESHOLD) return "quick";
   return "general";

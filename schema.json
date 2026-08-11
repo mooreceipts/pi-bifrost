@@ -30,7 +30,7 @@
     "categoryStrategies": {
       "type": "object",
       "description": "Per-tier strategy overrides. Keys must match tier names in 'models'. If a tier is not listed here, 'strategy' is used.",
-      "default": { "quick": "random", "general": "first", "frontier": "first" },
+      "default": { "quick": "first", "general": "first", "frontier": "first" },
       "additionalProperties": {
         "type": "string",
         "enum": ["first", "cheapest", "cheapest_input", "cheapest_output", "largest_context", "random", "fastest", "subscription_balance"]

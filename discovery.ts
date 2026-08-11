@@ -193,7 +193,6 @@ export function reconcileDiscoveredModels(
     }
 
     const tier = guessTier(model);
-    if (!tier) continue;
     (models[tier] ??= []).push(key);
     originalTier.set(key, tier);
     managed[key] = sources;

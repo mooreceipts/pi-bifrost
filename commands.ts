@@ -9,7 +9,7 @@ import type { CacheEntry } from "./cache.ts";
 import { cachePath, loadCache, saveCache, DEFAULT_MAX_ENTRIES, DEFAULT_THRESHOLD } from "./cache.ts";
 import type { ClassificationPipeline } from "./classification-pipeline.ts";
 import { setupDebug, debug, debugMeasure } from "./debug.ts";
-import { runProbe, PROBE_PROMPT_TEXT } from "./probe.ts";
+import { runProbe, PROBE_PROMPT_TEXT, type ProbeResult } from "./probe.ts";
 import {
   buildDiscoveryMetadata,
   discoverModels,
@@ -29,7 +29,7 @@ import {
   type HealthyModelResolution,
   type RoutingStrategy,
 } from "./routing.ts";
-import { fetchFreeModelRanking, applyCollectionSort, type CollectionRanking } from "./collection-ranking.ts";
+import { fetchFreeModelRanking, capFreeModels, sortTierModels, FREE_MODEL_LIMIT, type CollectionRanking } from "./collection-ranking.ts";
 import type { ReliabilityStore } from "./reliability-store.ts";
 import {
   formatDiagnostic,
@@ -147,6 +147,18 @@ function openCircuitCount(state: BifrostState, now = Date.now()): number {
   return state.reliabilityStore.openCircuitCount(now);
 }
 
+/** Feed probe results into the reliability store as circuit-breaker outcomes. */
+function applyProbeOutcomes(state: BifrostState, results: ProbeResult[]): void {
+  state.reliabilityStore.applyOutcomes(
+    results.map((r) =>
+      r.status === "ok"
+        ? { model: `${r.provider}/${r.model}`, ok: true as const, source: "probe" }
+        : { model: `${r.provider}/${r.model}`, ok: false as const, source: "probe", reason: r.error ?? r.status }
+    ),
+    Date.now(),
+  );
+}
+
 function formatCandidateLines(
   resolution: HealthyModelResolution,
   selectedKey: string | undefined,
@@ -219,7 +231,7 @@ function resolveTierDisplay(
 
 /** Default strategy per tier when generating init proposals. */
 const PROPOSAL_STRATEGIES: Record<string, RoutingStrategy> = {
-  quick: "random",
+  quick: "first",
   general: "first",
   frontier: "first",
   economical: "cheapest",
@@ -391,14 +403,7 @@ async function handleInit(
       }
     }, undefined, available);
     uiDone(ctx);
-    state.reliabilityStore.applyOutcomes(
-      results.map((r) =>
-        r.status === "ok"
-          ? { model: `${r.provider}/${r.model}`, ok: true as const, source: "probe" }
-          : { model: `${r.provider}/${r.model}`, ok: false as const, source: "probe", reason: r.error ?? r.status }
-      ),
-      Date.now()
-    );
+    applyProbeOutcomes(state, results);
 
     workingModels = results
       .filter((r) => r.status === "ok")
@@ -431,9 +436,34 @@ async function handleInit(
     log(ctx, `Using ${workingModels.length} probe-verified models (${probeAge}).`);
   }
 
-  const available = selectedModels ?? ctx.modelRegistry.getAvailable();
+  let available = selectedModels ?? ctx.modelRegistry.getAvailable();
+  const durationByKey = new Map(workingModels.map((w) => [`${w.provider}/${w.model}`, w.duration_ms]));
+
+  const collectionRanking = await collectionRankingPromise;
+  if (discoveryOptions.free && discovery?.sourceModels.free) {
+    const originalFree = discovery.sourceModels.free;
+    const originalFreeKeys = new Set(originalFree.map((m) => `${m.provider}/${m.id}`));
+    const verifiedKeys = new Set(workingModels.map((w) => `${w.provider}/${w.model}`));
+    discovery.sourceModels.free = capFreeModels(
+      originalFree,
+      (m) => `${m.provider}/${m.id}`,
+      verifiedKeys,
+      collectionRanking,
+      durationByKey,
+    );
+    const keptFreeKeys = new Set(discovery.sourceModels.free.map((m) => `${m.provider}/${m.id}`));
+    available = available.filter((m) => {
+      const key = `${m.provider}/${m.id}`;
+      return !originalFreeKeys.has(key) || keptFreeKeys.has(key);
+    });
+    if (collectionRanking) {
+      log(ctx, `Imported top ${discovery.sourceModels.free.length} free model(s) by collection ranking.`);
+    } else {
+      log(ctx, `Collection ranking unavailable; capped to ${FREE_MODEL_LIMIT} fastest free models.`, "warning");
+    }
+  }
+
   const models: Record<string, string[]> = {};
-  const uncategorized: string[] = [];
 
   for (const m of available) {
     const key = `${m.provider}/${m.id}`;
@@ -447,33 +477,14 @@ async function handleInit(
     }
 
     const tier = guessTier(m);
-    if (tier) {
-      models[tier] = models[tier] ?? [];
-      models[tier].push(key);
-    } else {
-      uncategorized.push(key);
-    }
+    models[tier] = models[tier] ?? [];
+    models[tier].push(key);
   }
 
-  // Sort each tier by probe response time (fastest first) so "first"
-  // strategy picks the fastest model.
-  if (probeLoaded) {
-    const speedMap = new Map(workingModels.map((w) => [`${w.provider}/${w.model}`, w.duration_ms]));
-    for (const tier of Object.keys(models)) {
-      models[tier].sort((a, b) => (speedMap.get(a) ?? Infinity) - (speedMap.get(b) ?? Infinity));
-    }
-  }
-
-  const collectionRanking = await collectionRankingPromise;
-  if (discoveryOptions.free && models.quick) {
-    if (collectionRanking) {
-      const freeKeys = new Set((discovery?.sourceModels.free ?? []).map((m) => `${m.provider}/${m.id}`));
-      const ctxMap = new Map(available.map((m) => [`${m.provider}/${m.id}`, m.contextWindow]));
-      applyCollectionSort(models.quick, collectionRanking, freeKeys, ctxMap);
-      log(ctx, `Sorted ${models.quick.length} quick-tier model(s) by collection popularity.`);
-    } else {
-      log(ctx, "Could not fetch collection ranking; using probe-speed sort.", "warning");
-    }
+  // Order every tier: non-free by probe duration, then free by collection rank.
+  const freeKeys = new Set((discovery?.sourceModels.free ?? []).map((m) => `${m.provider}/${m.id}`));
+  for (const tier of Object.keys(models)) {
+    sortTierModels(models[tier], collectionRanking, freeKeys, durationByKey);
   }
 
   // Pick a classifier default: fastest cheap working model.
@@ -522,10 +533,6 @@ async function handleInit(
     summaryLines.push(`[${tier}] (${tierModels.length} model${tierModels.length === 1 ? "" : "s"})`);
     for (const key of tierModels) summaryLines.push(`  ${key}`);
   }
-  if (uncategorized.length > 0) {
-    summaryLines.push("", `[uncategorized] (${uncategorized.length})`);
-    for (const key of uncategorized) summaryLines.push(`  ${key}`);
-  }
   summaryLines.push("", `classifier: ${classifierModel}`);
   if (discovery?.skipped.length) {
     summaryLines.push("", "skipped (discovery):");
@@ -540,10 +547,6 @@ async function handleInit(
 
   uiOutput(ctx, summaryLines);
 
-  if (uncategorized.length > 0) {
-    log(ctx, `${uncategorized.length} model(s) uncategorized — edit .pi/bifrost.json to assign them.`);
-  }
-
   const writeWithoutPrompt = args.trim().split(/\s+/).includes("--write");
   if (!ctx.hasUI && !writeWithoutPrompt) {
     log(ctx, "run in TUI or use --write to persist", "warning");
@@ -553,7 +556,6 @@ async function handleInit(
   const confirmBody = [
     `${totalAssigned} model${totalAssigned === 1 ? "" : "s"} across ${Object.keys(models).length} tier${Object.keys(models).length === 1 ? "" : "s"}`,
     probeErrors.length > 0 ? `${probeErrors.length} model${probeErrors.length === 1 ? "" : "s"} failed probe` : "",
-    uncategorized.length > 0 ? `${uncategorized.length} uncategorized` : "",
   ].filter(Boolean).join(". ");
 
   const ok = writeWithoutPrompt || await ctx.ui.confirm(
@@ -604,28 +606,39 @@ async function handleUpdate(
   uiBusy(ctx, `Probing ${discovery.candidates.length} discovered model(s)...`);
   const { results } = await runProbe(ctx, undefined, undefined, discovery.candidates);
   uiDone(ctx);
-  state.reliabilityStore.applyOutcomes(
-    results.map((result) => result.status === "ok"
-      ? { model: `${result.provider}/${result.model}`, ok: true as const, source: "probe" }
-      : { model: `${result.provider}/${result.model}`, ok: false as const, source: "probe", reason: result.error ?? result.status }),
-    Date.now(),
-  );
+  applyProbeOutcomes(state, results);
 
   const verifiedKeys = new Set(
     results.filter((result) => result.status === "ok").map((result) => `${result.provider}/${result.model}`),
   );
+  const durationByKey = new Map(results.map((r) => [`${r.provider}/${r.model}`, r.duration_ms]));
+
+  const updateRanking = await updateRankingPromise;
+  if (selected.free && discovery.sourceModels.free) {
+    const originalFree = discovery.sourceModels.free;
+    const originalFreeKeys = new Set(originalFree.map((m) => `${m.provider}/${m.id}`));
+    discovery.sourceModels.free = capFreeModels(
+      originalFree,
+      (m) => `${m.provider}/${m.id}`,
+      verifiedKeys,
+      updateRanking,
+      durationByKey,
+    );
+    const keptFreeKeys = new Set(discovery.sourceModels.free.map((m) => `${m.provider}/${m.id}`));
+    discovery.candidates = discovery.candidates.filter((m) => {
+      const key = `${m.provider}/${m.id}`;
+      return !originalFreeKeys.has(key) || keptFreeKeys.has(key);
+    });
+  }
+
   const configPath = join(process.cwd(), CONFIG_DIR_NAME, "bifrost.json");
   const current = readJson<BifrostConfig>(configPath) ?? state.config;
   const diff = reconcileDiscoveredModels(current, discovery, selected, verifiedKeys);
 
-  const updateRanking = await updateRankingPromise;
-  if (selected.free && updateRanking) {
-    const quickModels = diff.config.models?.quick;
-    if (Array.isArray(quickModels)) {
-      const freeKeys = new Set((discovery.sourceModels.free ?? []).map((m) => `${m.provider}/${m.id}`));
-      const ctxMap = new Map(discovery.candidates.map((m) => [`${m.provider}/${m.id}`, m.contextWindow]));
-      applyCollectionSort(quickModels, updateRanking, freeKeys, ctxMap);
-    }
+  // Order every tier: non-free by probe duration, then free by collection rank.
+  const freeKeys = new Set((discovery.sourceModels.free ?? []).map((m) => `${m.provider}/${m.id}`));
+  for (const tierModels of Object.values(diff.config.models ?? {})) {
+    if (Array.isArray(tierModels)) sortTierModels(tierModels, updateRanking, freeKeys, durationByKey);
   }
 
   const probeSkipped = results
@@ -970,14 +983,7 @@ export function createCommandRouter(
 
         const { results, path } = await runProbe(ctx, undefined, undefined, discovery ? available : undefined);
         uiDone(ctx);
-        state.reliabilityStore.applyOutcomes(
-          results.map((r) =>
-            r.status === "ok"
-              ? { model: `${r.provider}/${r.model}`, ok: true as const, source: "probe" }
-              : { model: `${r.provider}/${r.model}`, ok: false as const, source: "probe", reason: r.error ?? r.status }
-          ),
-          Date.now()
-        );
+        applyProbeOutcomes(state, results);
 
         const ok = results.filter((r) => r.status === "ok");
         const errs = results.filter((r) => r.status === "error");

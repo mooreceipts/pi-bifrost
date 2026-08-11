@@ -151,8 +151,7 @@
           <article>
             <h3>Choose policy, not hardcoded models</h3>
             <p>
-              Use cost, context, order, or random selection per tier. Your own Pi
-              registry and configuration determine candidates.
+              Use selection strategies like cost, context, or probe-speed ordering per tier. Candidates are ordered by performance: non-free models first by probe response time (fastest first), then free models by OpenRouter collection ranking. Your own Pi registry and configuration determine candidates.
             </p>
           </article>
           <article>
@@ -474,7 +473,7 @@
                 </tr>
                 <tr>
                   <td><code>first</code></td>
-                  <td>First available candidate in list order</td>
+                  <td>First available candidate in list order (default; uses probe-sorted ordering)</td>
                 </tr>
                 <tr>
                   <td><code>fastest</code></td>

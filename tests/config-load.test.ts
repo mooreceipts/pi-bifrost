@@ -26,7 +26,7 @@ describe("config load", () => {
       assert.equal(config.default, "general");
       assert.equal(config.silent, false);
       assert.deepEqual(config.categoryStrategies, {
-        quick: "random",
+        quick: "first",
         general: "first",
         frontier: "first",
       });

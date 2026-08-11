@@ -19,23 +19,28 @@ import { makeCtx, makeModel, withoutCost } from "./helpers.ts";
 
 describe("commands helpers", () => {
   describe("guessTier", () => {
-    it("classifies expensive models as frontier", () => {
+    it("classifies expensive paid models (>5) as frontier", () => {
       const m = makeModel("any", "any-model", 10, 5);
       assert.equal(guessTier(m), "frontier");
     });
 
-    it("classifies cheap models as quick", () => {
+    it("classifies cheap paid models (<1) as quick", () => {
       const m = makeModel("any", "any-model", 0.5, 0.2);
       assert.equal(guessTier(m), "quick");
     });
 
-    it("classifies free models (cost 0) as quick", () => {
-      const m = makeModel("ollama", "local-model", 0, 0);
+    it("classifies middling cost paid models as general", () => {
+      const m = makeModel("any", "mid-model", 3, 0);
+      assert.equal(guessTier(m), "general");
+    });
+
+    it("classifies free models (cost 0) with small context as quick", () => {
+      const m = makeModel("ollama", "local-model", 0, 0, 128000);
       assert.equal(guessTier(m), "quick");
     });
 
-    it("classifies middling cost models as general", () => {
-      const m = makeModel("any", "mid-model", 3, 0);
+    it("classifies free models (cost 0) with >=200k context as general", () => {
+      const m = makeModel("ollama", "local-model", 0, 0, 200000);
       assert.equal(guessTier(m), "general");
     });
 
@@ -44,9 +49,19 @@ describe("commands helpers", () => {
       assert.equal(guessTier(m), "quick");
     });
 
-    it("classifies high-cost models (>5) as frontier", () => {
-      const m = makeModel("any", "expensive", 10, 0);
+    it("classifies subscription provider (antigravity) >=200k context as frontier", () => {
+      const m = makeModel("antigravity", "sub-model", 3, 1, 200000);
       assert.equal(guessTier(m), "frontier");
+    });
+
+    it("classifies subscription provider (openai-codex) >=64k and <200k context as general", () => {
+      const m = makeModel("openai-codex", "sub-model", 3, 1, 100000);
+      assert.equal(guessTier(m), "general");
+    });
+
+    it("classifies subscription provider (openai-codex) <64k context as quick", () => {
+      const m = makeModel("openai-codex", "sub-model", 3, 1, 32000);
+      assert.equal(guessTier(m), "quick");
     });
 
     it("only returns known tier names", () => {
@@ -56,11 +71,13 @@ describe("commands helpers", () => {
         makeModel("cheap", "cheap", 0.5, 0.2),
         makeModel("mid", "mid", 3, 0),
         makeModel("expensive", "expensive", 10, 0),
+        makeModel("antigravity", "sub", 3, 1, 200000),
+        makeModel("openai-codex", "sub2", 3, 1, 32000),
         withoutCost(makeModel("no-cost", "no-cost", 0, 0)),
       ];
       for (const m of cases) {
         const tier = guessTier(m);
-        assert(tier === undefined || known.has(tier), `unexpected tier ${tier}`);
+        assert(known.has(tier), `unexpected tier ${tier}`);
       }
     });
   });
