@@ -2,6 +2,16 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 0.3.0
+- Session momentum prevents tier thrashing in multi-turn conversations
+- Complexity heuristic short-circuits LLM classifier for obvious prompts
+- Tier descriptions auto-generated from regex rules for classifier accuracy
+- 6 new general-tier regex rules (refactor, implement, explain, docs, etc.)
+- Implicit feedback loop: cache entries auto-escalate after 3 manual overrides
+- Parallel LLM classifier + regex execution reduces latency 200-500ms
+- Cache warm-start seeds entries from rules on first use
+- Rule learning module extracts bigrams from cache for suggested rules
+
 ## 0.2.0
 - **Session-aware routing**: classification pipeline tracks recent tier history. When 2+ of the last 3 prompts used the same tier, ambiguous follow-ups inherit that tier instead of falling to default. Resets on topic change (Jaccard similarity < 0.3), idle timeout (10 min), or inline override.
 - **Prompt complexity heuristic**: pre-classifier stage short-circuits to "quick" for trivially short prompts (<30 tokens, no code blocks, no frontier keywords) and escalates to "frontier" for complex prompts (200+ tokens, 3+ file references, or multi-paragraph with code). Reduces LLM classifier calls by 15-25%.
