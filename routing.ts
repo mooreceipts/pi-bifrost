@@ -104,6 +104,51 @@ export function findCandidates(
   return candidates;
 }
 
+export function diagnoseCandidates(
+  ctx: ExtensionContext,
+  pattern: string | string[] | undefined,
+): { candidates: Model<Api>[]; unresolved: string[] } {
+  if (!pattern) return { candidates: [], unresolved: [] };
+
+  const candidates: Model<Api>[] = [];
+  const unresolved: string[] = [];
+  const seen = new Set<string>();
+  const patterns = Array.isArray(pattern) ? pattern : [pattern];
+  const available = ctx.modelRegistry.getAvailable();
+
+  for (const p of patterns) {
+    let found = false;
+    if (p.includes("/")) {
+      const model = findOneModel(ctx, p);
+      if (model) {
+        found = true;
+        const key = modelKey(model);
+        if (!seen.has(key)) {
+          seen.add(key);
+          candidates.push(model);
+        }
+      }
+    } else {
+      const lower = p.toLowerCase();
+      for (const m of available) {
+        if (
+          (m.id.toLowerCase().includes(lower) ||
+            m.provider.toLowerCase().includes(lower))
+        ) {
+          found = true;
+          if (!seen.has(modelKey(m))) {
+            seen.add(modelKey(m));
+            candidates.push(m);
+          }
+        }
+      }
+    }
+    if (!found) unresolved.push(p);
+  }
+
+  return { candidates, unresolved };
+}
+
 export function selectModel(
   candidates: Model<Api>[],
   strategy: RoutingStrategy,

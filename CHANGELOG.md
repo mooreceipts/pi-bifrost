@@ -2,6 +2,13 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 0.1.14
+- Structured diagnostics with corrective actions for all error paths. Unresolvable model patterns, classifier failures, and setModel errors now show what went wrong and how to fix it instead of dumping raw stderr.
+- Startup validation warns about model patterns that don't resolve in the registry.
+- Per-prompt warnings (debounced) when a tier has unresolved patterns.
+- `/bifrost doctor` command: on-demand config health check validating all model patterns and classifier model against the live registry.
+- `setModel` error messages now show the actual cause (auth missing, network error, etc.) instead of the generic "no API key" message.
+
 ## 0.1.13
 - `/bifrost init` now shows a detailed summary before the write prompt: models grouped by tier, classifier selection, discovery skips, and probe errors. The confirm dialog includes model/tier counts and error totals instead of a generic "Write config?" message.
 

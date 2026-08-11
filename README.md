@@ -29,6 +29,7 @@ See [NOTICE.md](NOTICE.md) and [CHANGELOG.md](CHANGELOG.md) for full attribution
 | Reliability | Threshold-based circuit breaker | Instant circuit-open on HTTP 400+ errors (429 rate limits, auth failures, server errors); next prompt auto-routes to a different model |
 | Config reconciliation | `init` only | Adds `/bifrost update --scoped/--free` to preview and merge discovery results while preserving manual entries |
 | Silent mode | Not available | `/bifrost silence` / `unsilence` suppresses console and UI output without disabling routing |
+| Error diagnostics | Raw stderr dumps | Structured error messages with corrective actions; `/bifrost doctor` validates config against live registry |
 
 ## Install
 
@@ -73,6 +74,7 @@ Narrow discovery scope when needed:
 | `/bifrost silence` / `unsilence` | Suppress or restore console output |
 | `/bifrost preview <prompt>` | See routing decision without sending |
 | `/bifrost reload` | Reload config after manual edits |
+| `/bifrost doctor` | Validate config against available models |
 | `/bifrost classifier on` / `off` | Toggle LLM classifier |
 
 Force a tier for one message by prefixing it:

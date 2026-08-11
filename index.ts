@@ -23,6 +23,7 @@ import {
   type BifrostConfig,
 } from "./config.js";
 import {
+  diagnoseCandidates,
   findCandidates,
   getStrategy,
   modelKey,
@@ -34,6 +35,12 @@ import { loadRuntimeState, runtimeStatePath, saveRuntimeState } from "./runtime-
 import { createCommandRouter, getBifrostCommandCompletions, log, logOverwrite, uiBusy, uiDone, setBifrostSilent, syncBifrostModeStatus, clearBifrostWidgets, type BifrostState } from "./commands.js";
 import { setupDebug, debug, debugMeasure } from "./debug.js";
 import { parseInlineOverride } from "./inline-override.js";
+import {
+  formatDiagnostic,
+  parseSetModelError,
+  patternUnresolvable,
+  classifierModelMissing,
+} from "./diagnostics.js";
 import { RuntimeReliabilityTracker } from "./runtime-reliability.js";
 import {
   REGISTRY_REFRESH_TTL_MS,
@@ -144,6 +151,8 @@ export default function bifrostExtension(pi: ExtensionAPI) {
   let selfSelecting = false;
   const runtimeReliability = new RuntimeReliabilityTracker();
   let pipeline: ClassificationPipeline | undefined;
+  let startupValidated = false;
+  const warnedPatterns = new Set<string>();
 
   function getPipeline(ctx: ExtensionContext): ClassificationPipeline {
     if (!pipeline) {
@@ -203,8 +212,25 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     setBifrostSilent(ctx, state.silent);
     syncBifrostModeStatus(ctx, state);
     clearBifrostWidgets(ctx);
-    // Warm the quota snapshot so subscription_balance has data on first prompt.
     void quotaStore.refreshIfStale(Date.now());
+
+    if (!startupValidated && state.enabled) {
+      startupValidated = true;
+      for (const [tier, patterns] of Object.entries(state.config.models ?? {})) {
+        const { unresolved } = diagnoseCandidates(ctx, patterns);
+        for (const p of unresolved) {
+          log(ctx, formatDiagnostic(patternUnresolvable(tier, p)), "warning");
+        }
+      }
+      const classifierPattern = state.config.classifier?.model;
+      if (classifierPattern && state.classifierEnabled) {
+        const { candidates } = diagnoseCandidates(ctx, classifierPattern);
+        if (candidates.length === 0) {
+          const patternStr = Array.isArray(classifierPattern) ? classifierPattern[0] : classifierPattern;
+          log(ctx, formatDiagnostic(classifierModelMissing(patternStr)), "warning");
+        }
+      }
+    }
   });
 
   pi.on("agent_end", async (event) => {
@@ -342,6 +368,15 @@ export default function bifrostExtension(pi: ExtensionAPI) {
         ? getStrategy(state.config.categoryStrategies, state.config.strategy, defaultTier)
         : strategy;
 
+      const { unresolved } = diagnoseCandidates(ctx, pattern);
+      for (const p of unresolved) {
+        const warnKey = `${tier}:${p}`;
+        if (!warnedPatterns.has(warnKey)) {
+          warnedPatterns.add(warnKey);
+          log(ctx, formatDiagnostic(patternUnresolvable(tier, p)), "warning");
+        }
+      }
+
       const resolved = resolveModelWithFallback(ctx, {
         requestedTier: tier,
         requestedPattern: pattern,
@@ -419,12 +454,10 @@ export default function bifrostExtension(pi: ExtensionAPI) {
       if (!ok) {
         selfSelecting = false;
         state.forceRegistryRefresh = true;
-        const reason = setModelError
-          ? `setModel threw: ${String(setModelError).slice(0, 200)}`
-          : "setModel returned false";
-        state.reliabilityStore.recordFailure(modelKey(model), "setModel", reason);
+        const diagnostic = parseSetModelError(setModelError, modelKey(model));
+        state.reliabilityStore.recordFailure(modelKey(model), "setModel", diagnostic.message);
         syncBifrostModeStatus(ctx, state);
-        log(ctx, `Bifrost: no API key for ${modelKey(model)}`, "error");
+        log(ctx, `Bifrost: ${formatDiagnostic(diagnostic)}`, "error");
         endInput({ model: modelKey(model), ok: false });
         return defaultAction;
       }

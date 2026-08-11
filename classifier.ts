@@ -3,6 +3,7 @@ import type { Api, Model } from "@earendil-works/pi-ai";
 import { spawn } from "node:child_process";
 import { debug } from "./debug.ts";
 import { promptWithMinimalSession } from "./session-fallback.ts";
+import { parseClassifierStderr, formatDiagnostic } from "./diagnostics.ts";
 
 // ── Classifier model — union type, no type-cast lies ─────────
 
@@ -274,14 +275,15 @@ async function classifyWithSubprocess(
     child.on("close", (code: number | null) => {
       clearTimeout(timer);
       if (code !== 0) {
+        const modelId = `${model.provider}/${model.id}`;
+        const diagnostic = parseClassifierStderr(stderr, modelId, code);
         debug("classifier", "subprocess.error", {
-          model: `${model.provider}/${model.id}`,
+          model: modelId,
           exitCode: code,
+          diagnosticCode: diagnostic.code,
           stderr: stderr.slice(0, 200),
         });
-        console.error(
-          `[bifrost] classifier subprocess exited ${code}: ${stderr.slice(0, 500)}`,
-        );
+        console.error(`[bifrost] ${formatDiagnostic(diagnostic)}`);
         resolve(undefined);
         return;
       }

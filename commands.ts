@@ -25,11 +25,18 @@ import {
   guessTier,
   modelKey,
   resolveModelWithFallback,
+  diagnoseCandidates,
   type HealthyModelResolution,
   type RoutingStrategy,
 } from "./routing.ts";
 import { fetchFreeModelRanking, applyCollectionSort, type CollectionRanking } from "./collection-ranking.ts";
 import type { ReliabilityStore } from "./reliability-store.ts";
+import {
+  formatDiagnostic,
+  patternUnresolvable,
+  classifierModelMissing,
+  type BifrostDiagnostic,
+} from "./diagnostics.ts";
 
 // ── Mutable state shared across commands ────────────────────
 
@@ -802,6 +809,7 @@ export const BIFROST_COMMAND_OPTIONS: readonly CommandSpec[] = [
   { value: "classifier off", description: "Disable LLM classifier" },
   { value: "classifier status", description: "Show classifier state" },
   { value: "debug", description: "Show config and routing state" },
+  { value: "doctor", description: "Validate config against available models" },
   { value: "preview", description: "Preview routing for a prompt", argumentHint: "<prompt>" },
 ] as const;
 
@@ -1109,6 +1117,44 @@ export function createCommandRouter(
       uiOutput(ctx, lines);
       log(ctx, "debug info printed above");
     }),
+
+    exact("doctor", "Validate config against available models", async (_, ctx) => {
+      clearBifrostWidgets(ctx);
+      uiBusy(ctx, "Running diagnostics...");
+
+      const diagnostics: BifrostDiagnostic[] = [];
+
+      for (const [tier, patterns] of Object.entries(state.config.models ?? {})) {
+        const { unresolved } = diagnoseCandidates(ctx, patterns);
+        for (const p of unresolved) {
+          diagnostics.push(patternUnresolvable(tier, p));
+        }
+      }
+
+      const classifierPattern = state.config.classifier?.model;
+      if (classifierPattern && state.classifierEnabled) {
+        const classified = diagnoseCandidates(ctx, classifierPattern);
+        if (classified.candidates.length === 0) {
+          const patternStr = Array.isArray(classifierPattern) ? classifierPattern[0] : classifierPattern;
+          diagnostics.push(classifierModelMissing(patternStr));
+        }
+      }
+
+      uiDone(ctx);
+
+      if (diagnostics.length === 0) {
+        log(ctx, "All model patterns resolve correctly. No issues found.");
+        return;
+      }
+
+      const lines = [
+        `--- doctor (${diagnostics.length} issue${diagnostics.length === 1 ? "" : "s"}) ---`,
+        ...diagnostics.map(d => `  [${d.severity}] ${formatDiagnostic(d)}`),
+        "---",
+      ];
+      uiOutput(ctx, lines);
+    }),
+
     prefix("preview", "Preview routing for a prompt", (args, ctx) => handlePreview(args, ctx, state), "<prompt>"),
   ];
 
