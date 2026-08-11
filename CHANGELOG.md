@@ -2,6 +2,10 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 0.1.12
+- Instant circuit-open on HTTP 400+ errors. Any 4xx/5xx response (rate limits, auth failures, server errors) immediately opens the circuit breaker for that model — no need to hit the 3-failure threshold. Next prompt automatically routes to a different model.
+- Improved failure logging: HTTP status codes are surfaced in the warning message with a hint that the circuit has opened.
+
 ## 0.1.11
 - `--free` discovery now fetches the OpenRouter free-models collection page at runtime and sorts quick-tier free models by popularity ranking (cumulative token throughput). Non-free quick-tier models sort by context window capacity. Falls back to probe-speed sort if collection page is unreachable.
 - Status synchronization fix for Bifrost mode changes.

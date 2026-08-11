@@ -144,6 +144,36 @@ describe("reliability", () => {
     }
   });
 
+  it("opens circuit immediately on HTTP 4xx error", () => {
+    const cfg = { ...DEFAULT_RELIABILITY, failureThreshold: 3, windowMinutes: 5, cooldownMinutes: 60 };
+    const key = "openrouter/nvidia/test:free";
+    const t0 = Date.UTC(2026, 0, 1, 12, 0, 0);
+    const reason = 'Error: 429: {"message":"Provider returned error","code":429}';
+    let state = emptyReliabilityState();
+    state = recordModelFailure(state, key, cfg, t0, "settled", reason);
+    const circuit = getCircuitState(state, key, t0, cfg);
+    assert.equal(circuit.open, true, "circuit should open on first 429");
+    assert.equal(circuit.recentFailures, 1);
+  });
+
+  it("opens circuit immediately on HTTP 5xx error", () => {
+    const cfg = { ...DEFAULT_RELIABILITY, failureThreshold: 3, windowMinutes: 5, cooldownMinutes: 60 };
+    const key = "openrouter/test/model";
+    const t0 = Date.UTC(2026, 0, 1, 12, 0, 0);
+    let state = emptyReliabilityState();
+    state = recordModelFailure(state, key, cfg, t0, "settled", "Error: 502 Bad Gateway");
+    assert.equal(getCircuitState(state, key, t0, cfg).open, true);
+  });
+
+  it("does not immediately open circuit on non-HTTP errors", () => {
+    const cfg = { ...DEFAULT_RELIABILITY, failureThreshold: 3, windowMinutes: 5, cooldownMinutes: 60 };
+    const key = "openrouter/test/model";
+    const t0 = Date.UTC(2026, 0, 1, 12, 0, 0);
+    let state = emptyReliabilityState();
+    state = recordModelFailure(state, key, cfg, t0, "probe", "timeout");
+    assert.equal(getCircuitState(state, key, t0, cfg).open, false, "should not open on generic timeout");
+  });
+
   it("half-open: allows one trial after cooldown, closes on success", () => {
     const cfg = { ...DEFAULT_RELIABILITY, failureThreshold: 1, windowMinutes: 5, cooldownMinutes: 60 };
     const key = "openai/gpt-5.4";
