@@ -29,7 +29,7 @@ import {
   type HealthyModelResolution,
   type RoutingStrategy,
 } from "./routing.ts";
-import { fetchFreeModelRanking, capFreeModels, sortTierModels, FREE_MODEL_LIMIT, type CollectionRanking } from "./collection-ranking.ts";
+import { fetchFreeModelRanking, capFreeModels, sortTierModels, FREE_MODEL_LIMIT } from "./collection-ranking.ts";
 import type { ReliabilityStore } from "./reliability-store.ts";
 import {
   formatDiagnostic,
