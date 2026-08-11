@@ -85,6 +85,36 @@ export const DEFAULT_RULES: RouteRule[] = [
   },
   {
     pattern:
+      "\\b(refactor|restructure|reorganize|clean up|simplify this|extract method|extract function|extract component|move this|rename this)\\b",
+    model: "general",
+  },
+  {
+    pattern:
+      "\\b(implement|add feature|create a|build a|write a|set up|scaffold|boilerplate|skeleton|stub)\\b",
+    model: "general",
+  },
+  {
+    pattern:
+      "\\b(explain this|explain how|explain why|what does this|how does this|walk me through|describe this)\\b",
+    model: "general",
+  },
+  {
+    pattern:
+      "\\b(write docs?|write documentation|add comments|document this|jsdoc|docstring|readme)\\b",
+    model: "general",
+  },
+  {
+    pattern:
+      "\\b(add error handling|add validation|add logging|add types?|add interface|add typing|type this)\\b",
+    model: "general",
+  },
+  {
+    pattern:
+      "\\b(api integration|connect to|call the api|http request|fetch from|rest endpoint|graphql query)\\b",
+    model: "general",
+  },
+  {
+    pattern:
       "(^|\\s)\\/?review(?:\\s|$)|\\b(review this code|review this diff|review this pull request|review this pr|code review|audit this code|security review of this code)\\b",
     model: "frontier",
   },
@@ -341,4 +371,34 @@ export function loadRules(cwd: string, config: BifrostConfig): RouteRule[] {
   }
 
   return config.rules?.length ? config.rules : DEFAULT_RULES;
+}
+
+export function generateTierDescriptions(rules: RouteRule[], tiers: readonly string[]): Record<string, string> {
+  const keywords: Record<string, Set<string>> = {};
+  for (const tier of tiers) keywords[tier] = new Set();
+
+  for (const rule of rules) {
+    if (!tiers.includes(rule.model)) continue;
+    const cleaned = rule.pattern
+      .replace(/\(\?\:[^)]*\)/g, "")
+      .replace(/\\b/g, "")
+      .replace(/\(\^?\|?\\s\)\??/g, "")
+      .replace(/\\s/g, " ")
+      .replace(/\\\//g, "/")
+      .replace(/[()^$|\\?+*\[\]{}]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    for (const word of cleaned.split(" ")) {
+      if (word.length > 2) keywords[rule.model].add(word);
+    }
+  }
+
+  const descriptions: Record<string, string> = {};
+  for (const tier of tiers) {
+    const words = [...keywords[tier]];
+    if (words.length > 0) {
+      descriptions[tier] = words.slice(0, 12).join(", ");
+    }
+  }
+  return descriptions;
 }

@@ -52,6 +52,7 @@ export interface ClassifierOptions {
   maxTokens?: number;
   temperature?: number;
   method?: "direct" | "subprocess" | "auto";
+  tierDescriptions?: Record<string, string>;
 }
 
 export function categoryLabel(category: string): string {
@@ -61,9 +62,17 @@ export function categoryLabel(category: string): string {
 export function classificationPrompt(
   categories: readonly string[],
   userPrompt: string,
+  tierDescriptions?: Record<string, string>,
 ): string {
+  const categoryList = tierDescriptions
+    ? categories.map((c) => {
+        const desc = tierDescriptions[c];
+        return desc ? `${categoryLabel(c)}: ${desc}` : categoryLabel(c);
+      }).join("\n")
+    : categories.map(categoryLabel).join(", ");
+
   return (
-    `Categories: ${categories.map(categoryLabel).join(", ")}\n\n` +
+    `Categories:\n${categoryList}\n\n` +
     `Classify the request into exactly one category. Respond with only the category name.\n\n` +
     `Request: ${userPrompt}\n\n` +
     `Category:`
@@ -94,7 +103,7 @@ async function classifyWithDirectHttp(
   const systemPrompt = options.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
   const maxTokens = options.maxTokens ?? 20;
   const temperature = options.temperature ?? 0;
-  const userPrompt = classificationPrompt(categories, prompt);
+  const userPrompt = classificationPrompt(categories, prompt, options.tierDescriptions);
 
   if (classifierModel.kind === "registry") {
     const provider = ctx.modelRegistry.getProvider(classifierModel.model.provider);
@@ -223,7 +232,7 @@ async function classifyWithSubprocess(
   debug("classifier", "subprocess.start", { model: `${model.provider}/${model.id}` });
 
   const systemPrompt = options.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
-  const userPrompt = classificationPrompt(categories, prompt);
+  const userPrompt = classificationPrompt(categories, prompt, options.tierDescriptions);
   const { command, args } = piCommand();
 
   const piArgs = [

@@ -1,6 +1,8 @@
 import type { ClassifierModel } from "./classifier.ts";
 import { classify as regexClassify, type RouteRule } from "./routing.ts";
 import { debug, debugMeasure } from "./debug.ts";
+import type { SessionRoutingContext } from "./session-context.ts";
+import { assessComplexity } from "./complexity.ts";
 
 // ── ADT result type ────────────────────────────────────────────
 
@@ -36,6 +38,10 @@ export interface PipelineDeps {
   readonly defaultTier: string | undefined;
   /** Known tier names, from config.models keys. */
   readonly tiers: readonly string[];
+  /** Session routing context for multi-turn momentum. */
+  readonly sessionContext?: SessionRoutingContext;
+  /** Enable complexity-based short-circuiting. */
+  readonly complexityEnabled?: boolean;
 }
 
 // ── Pipeline interface ─────────────────────────────────────────
@@ -54,11 +60,12 @@ export function createPipeline(deps: PipelineDeps): ClassificationPipeline {
     regexRules,
     defaultTier,
     tiers,
+    sessionContext,
+    complexityEnabled,
   } = deps;
 
   async function classify(text: string): Promise<ClassificationResult> {
     // Stage 1: pre-check regex for direct model references only.
-    // Runs before tiers check — direct bindings work even with zero tiers.
     {
       const endPre = debugMeasure("pipeline", "regex_pre");
       const pre = regexClassify(text, regexRules);
@@ -80,37 +87,81 @@ export function createPipeline(deps: PipelineDeps): ClassificationPipeline {
       return { kind: "classified", tier: cached, source: "cache" };
     }
 
-    // Stage 3: LLM classifier — try each model in priority order
-    for (const model of classifierModels) {
-      try {
-        const endLLM = debugMeasure("pipeline", "classifier.attempt");
-        const tier = await classifyWithLLM(model, text, tiers);
-        const modelId = model.kind === "registry" ? model.model.id : model.id;
-        endLLM({ model: modelId, tier });
-        if (tier && tiers.includes(tier)) {
-          debug("pipeline", "result", { source: "classifier", tier });
-          return { kind: "classified", tier, source: "classifier" };
-        }
-      } catch (err) {
-        debug("pipeline", "classifier.error", { error: String(err) });
-        console.error(`[bifrost] classifier model failed: ${err}`);
+    // Stage 2.5: session momentum — reuse recent tier if conversation continues
+    if (sessionContext) {
+      const endSession = debugMeasure("pipeline", "session");
+      const sessionTier = sessionContext.suggest(text);
+      endSession({ tier: sessionTier });
+      if (sessionTier && tiers.includes(sessionTier)) {
+        debug("pipeline", "result", { source: "cache", tier: sessionTier, sessionMomentum: true });
+        return { kind: "classified", tier: sessionTier, source: "cache" };
       }
     }
 
-    // Stage 3: regex rules
-    const endRegex = debugMeasure("pipeline", "regex");
-    const regex = regexClassify(text, regexRules);
-    endRegex({ match: !!regex, tier: regex });
-    if (regex) {
-      if (tiers.includes(regex)) {
-        // Tier name match — route through strategy.
-        debug("pipeline", "result", { source: "regex", tier: regex });
-        return { kind: "classified", tier: regex, source: "regex" };
+    // Stage 2.75: complexity heuristic — short-circuit for obvious cases
+    if (complexityEnabled !== false) {
+      const endComplexity = debugMeasure("pipeline", "complexity");
+      const verdict = assessComplexity(text, tiers);
+      endComplexity({ verdict });
+      if (verdict && tiers.includes(verdict)) {
+        debug("pipeline", "result", { source: "regex", tier: verdict, complexity: true });
+        return { kind: "classified", tier: verdict, source: "regex" };
       }
-      if (regex.includes("/")) {
-        // Direct model reference (e.g. "opencode-go/glm-5.1" in rule).
-        debug("pipeline", "result", { source: "regex", tier: regex, direct: true });
-        return { kind: "classified", tier: regex, source: "regex" };
+    }
+
+    // Stage 3: LLM classifier + regex rules in parallel
+    if (classifierModels.length > 0) {
+      const classifierPromise = (async (): Promise<string | undefined> => {
+        for (const model of classifierModels) {
+          try {
+            const endLLM = debugMeasure("pipeline", "classifier.attempt");
+            const tier = await classifyWithLLM(model, text, tiers);
+            const modelId = model.kind === "registry" ? model.model.id : model.id;
+            endLLM({ model: modelId, tier });
+            if (tier && tiers.includes(tier)) return tier;
+          } catch (err) {
+            debug("pipeline", "classifier.error", { error: String(err) });
+            console.error(`[bifrost] classifier model failed: ${err}`);
+          }
+        }
+        return undefined;
+      })();
+
+      const endRegex = debugMeasure("pipeline", "regex");
+      const regexResult = regexClassify(text, regexRules);
+      endRegex({ match: !!regexResult, tier: regexResult });
+
+      const classifierResult = await classifierPromise;
+
+      if (classifierResult) {
+        debug("pipeline", "result", { source: "classifier", tier: classifierResult });
+        return { kind: "classified", tier: classifierResult, source: "classifier" };
+      }
+
+      if (regexResult) {
+        if (tiers.includes(regexResult)) {
+          debug("pipeline", "result", { source: "regex", tier: regexResult });
+          return { kind: "classified", tier: regexResult, source: "regex" };
+        }
+        if (regexResult.includes("/")) {
+          debug("pipeline", "result", { source: "regex", tier: regexResult, direct: true });
+          return { kind: "classified", tier: regexResult, source: "regex" };
+        }
+      }
+    } else {
+      // No classifier models — regex only
+      const endRegex = debugMeasure("pipeline", "regex");
+      const regex = regexClassify(text, regexRules);
+      endRegex({ match: !!regex, tier: regex });
+      if (regex) {
+        if (tiers.includes(regex)) {
+          debug("pipeline", "result", { source: "regex", tier: regex });
+          return { kind: "classified", tier: regex, source: "regex" };
+        }
+        if (regex.includes("/")) {
+          debug("pipeline", "result", { source: "regex", tier: regex, direct: true });
+          return { kind: "classified", tier: regex, source: "regex" };
+        }
       }
     }
 

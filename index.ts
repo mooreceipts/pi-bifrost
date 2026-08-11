@@ -12,6 +12,8 @@ import {
   loadCache,
   saveCache,
   updateCache,
+  demoteCacheEntry,
+  warmStartCache,
   DEFAULT_MAX_ENTRIES,
   DEFAULT_THRESHOLD,
   type CacheEntry,
@@ -20,6 +22,7 @@ import {
   loadConfig,
   loadRules,
   validateConfig,
+  generateTierDescriptions,
   type BifrostConfig,
 } from "./config.js";
 import {
@@ -42,6 +45,7 @@ import {
   classifierModelMissing,
 } from "./diagnostics.js";
 import { RuntimeReliabilityTracker } from "./runtime-reliability.js";
+import { SessionRoutingContext } from "./session-context.js";
 import {
   REGISTRY_REFRESH_TTL_MS,
   setBifrostStatus,
@@ -71,6 +75,7 @@ function buildPipeline(
   config: BifrostConfig,
   cacheEntries: CacheEntry[],
   classifierEnabled: boolean,
+  sessionContext: SessionRoutingContext,
 ): ClassificationPipeline {
   const tiers = Object.keys(config.models ?? {});
   const cacheCfg = config.cache;
@@ -93,6 +98,9 @@ function buildPipeline(
     }
   }
 
+  const rules = loadRules(process.cwd(), config);
+  const tierDescriptions = generateTierDescriptions(rules, tiers);
+
   return createPipeline({
     cacheLookup: (text) => {
       if (!cacheEnabled) return undefined;
@@ -110,10 +118,13 @@ function buildPipeline(
         maxTokens: config.classifier?.maxTokens,
         temperature: config.classifier?.temperature,
         method: config.classifier?.method,
+        tierDescriptions,
       }),
-    regexRules: loadRules(process.cwd(), config),
+    regexRules: rules,
     defaultTier: config.default,
     tiers,
+    sessionContext,
+    complexityEnabled: true,
   });
 }
 
@@ -150,13 +161,15 @@ export default function bifrostExtension(pi: ExtensionAPI) {
   });
   let selfSelecting = false;
   const runtimeReliability = new RuntimeReliabilityTracker();
+  const sessionContext = new SessionRoutingContext();
+  let lastRoutedPrompt: string | undefined;
   let pipeline: ClassificationPipeline | undefined;
   let startupValidated = false;
   const warnedPatterns = new Set<string>();
 
   function getPipeline(ctx: ExtensionContext): ClassificationPipeline {
     if (!pipeline) {
-      pipeline = buildPipeline(ctx, state.config, state.cacheEntries, state.classifierEnabled);
+      pipeline = buildPipeline(ctx, state.config, state.cacheEntries, state.classifierEnabled, sessionContext);
     }
     return pipeline;
   }
@@ -214,6 +227,19 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     clearBifrostWidgets(ctx);
     void quotaStore.refreshIfStale(Date.now());
 
+    // Warm-start cache if empty
+    if (state.cacheEntries.length === 0) {
+      const rules = loadRules(process.cwd(), state.config);
+      const tiers = Object.keys(state.config.models ?? {});
+      const maxEntries = state.config.cache?.maxEntries ?? DEFAULT_MAX_ENTRIES;
+      state.cacheEntries = warmStartCache(state.cacheEntries, rules, tiers, maxEntries);
+      if (state.cacheEntries.length > 0) {
+        saveCache(cachePath(process.cwd(), state.config.cache?.path), state.cacheEntries);
+        invalidatePipeline();
+        debug("cache", "warm_start", { entries: state.cacheEntries.length });
+      }
+    }
+
     if (!startupValidated && state.enabled) {
       startupValidated = true;
       for (const [tier, patterns] of Object.entries(state.config.models ?? {})) {
@@ -259,6 +285,18 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     }
     if (!state.enabled) return;
 
+    if (lastRoutedPrompt) {
+      const tiers = Object.keys(state.config.models ?? {});
+      const escalated = demoteCacheEntry(state.cacheEntries, lastRoutedPrompt, tiers);
+      if (escalated) {
+        saveCache(cachePath(process.cwd(), state.config.cache?.path), state.cacheEntries);
+        invalidatePipeline();
+        debug("feedback", "demotion_escalated", { prompt: lastRoutedPrompt.slice(0, 50) });
+      }
+      lastRoutedPrompt = undefined;
+    }
+
+    sessionContext.reset();
     state.pinned = true;
     state.saveModeState();
     debug("bifrost", "model_select", { model: modelKey(ctx.model) });
@@ -340,6 +378,8 @@ export default function bifrostExtension(pi: ExtensionAPI) {
       if (classification.kind === "classified") {
         const tag = classification.source === "inline" ? "!" : classification.source;
         log(ctx, `classify: ${classification.tier} [${tag}]`);
+        sessionContext.record(classification.tier, promptText);
+        lastRoutedPrompt = promptText;
       }
 
       void quotaStore.refreshIfStale(Date.now());

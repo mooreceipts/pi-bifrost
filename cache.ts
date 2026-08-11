@@ -7,6 +7,10 @@ export interface CacheEntry {
   hits: number;
   /** Monotonic sequence number for stable eviction ordering. */
   seq?: number;
+  /** Times this entry was implicitly demoted (re-prompt or manual override). */
+  demotions?: number;
+  /** True if this entry was auto-seeded, not from real classification. */
+  synthetic?: boolean;
 }
 
 export interface CacheOptions {
@@ -115,6 +119,34 @@ export function touchCacheEntry(entry: CacheEntry): void {
   entry.hits++;
 }
 
+const TIER_ESCALATION: Record<string, string> = {
+  quick: "general",
+  general: "frontier",
+};
+
+const DEMOTION_THRESHOLD = 3;
+
+export function demoteCacheEntry(
+  entries: CacheEntry[],
+  prompt: string,
+  tiers: readonly string[],
+): boolean {
+  const normalized = normalize(prompt);
+  const entry = entries.find((e) => e.normalized === normalized);
+  if (!entry) return false;
+
+  entry.demotions = (entry.demotions ?? 0) + 1;
+  if (entry.demotions >= DEMOTION_THRESHOLD) {
+    const escalated = TIER_ESCALATION[entry.category];
+    if (escalated && tiers.includes(escalated)) {
+      entry.category = escalated;
+      entry.demotions = 0;
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Convenience: pure lookup composed with LRU touch.
  * @deprecated Prefer explicit `lookupCache` + `touchCacheEntry` at call sites. */
 export function findCachedCategory(
@@ -158,4 +190,45 @@ export function updateCache(
 
 export function cachePath(cwd: string, configuredPath?: string): string {
   return resolveStoragePath(cwd, configuredPath, ".pi/bifrost-cache.jsonl");
+}
+
+export function warmStartCache(
+  entries: CacheEntry[],
+  rules: Array<{ pattern: string; model: string }>,
+  tiers: readonly string[],
+  maxEntries: number,
+): CacheEntry[] {
+  if (entries.length > 0) return entries;
+
+  const seeds: Array<{ text: string; tier: string }> = [];
+  const phrasePattern = /[a-z][a-z ]{3,}/gi;
+
+  for (const rule of rules) {
+    if (!tiers.includes(rule.model)) continue;
+    const matches = rule.pattern
+      .replace(/\\b/g, "")
+      .replace(/\(\?\:[^)]*\)/g, "")
+      .replace(/[()^$|\\?+*\[\]{}]/g, " ")
+      .replace(/\\s/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .match(phrasePattern);
+
+    if (matches) {
+      for (const phrase of matches.slice(0, 3)) {
+        if (phrase.trim().length > 3) {
+          seeds.push({ text: phrase.trim(), tier: rule.model });
+        }
+      }
+    }
+  }
+
+  let result = entries;
+  for (const seed of seeds) {
+    result = updateCache(result, seed.text, seed.tier, maxEntries);
+    const last = result[result.length - 1];
+    if (last) last.synthetic = true;
+  }
+
+  return result;
 }
