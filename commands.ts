@@ -827,12 +827,14 @@ export function createCommandRouter(
       state.silent = true;
       state.saveModeState();
       setBifrostSilent(ctx, true);
+      syncBifrostModeStatus(ctx, state);
       clearBifrostWidgets(ctx);
     }),
     exact("unsilence", "Show Bifrost output", (_, ctx) => {
       state.silent = false;
       state.saveModeState();
       setBifrostSilent(ctx, false);
+      syncBifrostModeStatus(ctx, state);
       log(ctx, "Bifrost output enabled");
     }),
     exact("reload", "Reload config after editing", (_, ctx) => {

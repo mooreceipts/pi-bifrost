@@ -1,4 +1,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 
 export const REGISTRY_REFRESH_TTL_MS = 30_000;
 
@@ -86,6 +89,24 @@ export function formatBifrostStatus(state: { enabled: boolean; pinned: boolean; 
 
 export function setBifrostModeStatus(ctx: ExtensionContext, state: BifrostModeState): void {
   if (!ctx.hasUI) return;
+
+  if (ctx.cwd) {
+    try {
+      const file = join(homedir(), ".pi", "agent", "statusline.json");
+      let current: any = {};
+      if (existsSync(file)) {
+        try {
+          current = JSON.parse(readFileSync(file, "utf-8"));
+        } catch {}
+      }
+      current.bifrost = {
+        enabled: state.enabled,
+        pinned: state.pinned,
+        silent: state.silent,
+      };
+      writeFileSync(file, JSON.stringify(current, null, 2), "utf-8");
+    } catch {}
+  }
 
   const label = modeLabel(state);
   const text = statusText(ctx, label.tone, label.text);

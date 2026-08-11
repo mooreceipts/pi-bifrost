@@ -125,6 +125,7 @@ describe("bifrost command ui", () => {
     const dispatch = createCommandRouter(state as never);
 
     await dispatch("silence", ctx as never);
+    assert(calls.some((call) => call.kind === "status" && String(call.value).replace(/\x1b\[[0-9;]*m/g, "").includes("~ silence")));
     const notificationsBeforePin = calls.filter((call) => call.kind === "notify").length;
     await dispatch("pin", ctx as never);
 
@@ -133,6 +134,7 @@ describe("bifrost command ui", () => {
 
     await dispatch("unsilence", ctx as never);
     assert.equal(state.silent, false);
+    assert(calls.some((call) => call.kind === "status" && String(call.value).replace(/\x1b\[[0-9;]*m/g, "").includes("~ unsilence")));
     assert(calls.some((call) => call.kind === "notify" && String(call.value).includes("Bifrost output enabled")));
     assert.equal(calls.filter((call) => call.kind === "save").length, 3);
   });
