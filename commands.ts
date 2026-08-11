@@ -28,6 +28,7 @@ import {
   type HealthyModelResolution,
   type RoutingStrategy,
 } from "./routing.ts";
+import { fetchFreeModelRanking, applyCollectionSort, type CollectionRanking } from "./collection-ranking.ts";
 import type { ReliabilityStore } from "./reliability-store.ts";
 
 // ── Mutable state shared across commands ────────────────────
@@ -354,6 +355,8 @@ async function handleInit(
     }
   }
 
+  const collectionRankingPromise = discoveryOptions.free ? fetchFreeModelRanking() : Promise.resolve(null);
+
   // If no fresh probe data, run probe inline.
   if (!probeLoaded) {
     const available = selectedModels ?? ctx.modelRegistry.getAvailable();
@@ -454,6 +457,18 @@ async function handleInit(
     }
   }
 
+  const collectionRanking = await collectionRankingPromise;
+  if (discoveryOptions.free && models.quick) {
+    if (collectionRanking) {
+      const freeKeys = new Set((discovery?.sourceModels.free ?? []).map((m) => `${m.provider}/${m.id}`));
+      const ctxMap = new Map(available.map((m) => [`${m.provider}/${m.id}`, m.contextWindow]));
+      applyCollectionSort(models.quick, collectionRanking, freeKeys, ctxMap);
+      log(ctx, `Sorted ${models.quick.length} quick-tier model(s) by collection popularity.`);
+    } else {
+      log(ctx, "Could not fetch collection ranking; using probe-speed sort.", "warning");
+    }
+  }
+
   // Pick a classifier default: fastest cheap working model.
   let classifierModel: string | undefined;
   if (probeLoaded && workingModels.length > 0) {
@@ -548,6 +563,8 @@ async function handleUpdate(
     return;
   }
 
+  const updateRankingPromise = selected.free ? fetchFreeModelRanking() : Promise.resolve(null);
+
   uiBusy(ctx, `Probing ${discovery.candidates.length} discovered model(s)...`);
   const { results } = await runProbe(ctx, undefined, undefined, discovery.candidates);
   uiDone(ctx);
@@ -564,6 +581,17 @@ async function handleUpdate(
   const configPath = join(process.cwd(), CONFIG_DIR_NAME, "bifrost.json");
   const current = readJson<BifrostConfig>(configPath) ?? state.config;
   const diff = reconcileDiscoveredModels(current, discovery, selected, verifiedKeys);
+
+  const updateRanking = await updateRankingPromise;
+  if (selected.free && updateRanking) {
+    const quickModels = diff.config.models?.quick;
+    if (Array.isArray(quickModels)) {
+      const freeKeys = new Set((discovery.sourceModels.free ?? []).map((m) => `${m.provider}/${m.id}`));
+      const ctxMap = new Map(discovery.candidates.map((m) => [`${m.provider}/${m.id}`, m.contextWindow]));
+      applyCollectionSort(quickModels, updateRanking, freeKeys, ctxMap);
+    }
+  }
+
   const probeSkipped = results
     .filter((result) => result.status !== "ok")
     .map((result) => `${result.provider}/${result.model} (${result.status}${result.error ? `: ${result.error}` : ""})`)

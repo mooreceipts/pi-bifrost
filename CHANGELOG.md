@@ -2,6 +2,11 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 0.1.11
+- `--free` discovery now fetches the OpenRouter free-models collection page at runtime and sorts quick-tier free models by popularity ranking (cumulative token throughput). Non-free quick-tier models sort by context window capacity. Falls back to probe-speed sort if collection page is unreachable.
+- Status synchronization fix for Bifrost mode changes.
+- Weekly quota tolerance routing for subscription-balanced model selection.
+
 ## 0.1.0
 - Silent mode configuration (`"silent": true`) to turn off all Pi console outputs and UI notifications while model routing remains active.
 - `/bifrost silence` and `/bifrost unsilence` slash subcommands.
