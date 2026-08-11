@@ -23,7 +23,7 @@ See [NOTICE.md](NOTICE.md) and [CHANGELOG.md](CHANGELOG.md) for full attribution
 
 | Area | Original | This fork |
 |------|----------|-----------|
-| Model selection strategy | `first`, `cheapest`, `random`, `largest_context` | Adds `subscription_balance` — weights candidates by weekly subscription quota remaining |
+| Model selection strategy | `first`, `cheapest`, `random`, `largest_context` | Adds `subscription_balance`; opted-in categories favor Codex or Antigravity when one has over 2 percentage points more weekly quota, otherwise preserve configured order |
 | Credit spend policy | All candidates equally eligible | Subscription providers (Codex, Antigravity) preferred; paid OpenRouter candidates blocked until subscriptions drain past `reservePercent` |
 | Model discovery | Probes all Pi models | Adds `--scoped` (Pi enabled-models only) and `--free` (OpenRouter free tier only) flags for `init` and `update` |
 | Config reconciliation | `init` only | Adds `/bifrost update --scoped/--free` to preview and merge discovery results while preserving manual entries |

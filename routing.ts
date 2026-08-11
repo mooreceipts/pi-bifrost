@@ -124,8 +124,14 @@ export function selectModel(
       return [...candidates].sort((a, b) => modelContextSize(b) - modelContextSize(a))[0];
     case "random":
       return candidates[Math.floor(Math.random() * candidates.length)];
-    case "subscription_balance":
-      return selectWeighted(candidates, subscriptionWeights(candidates, quota, quotaConfig, now));
+    case "subscription_balance": {
+      const preference = weeklyQuotaPreference(candidates, quota, quotaConfig, now);
+      if (preference.ignoreWeeklyQuota) return preference.candidates[0];
+      return selectWeighted(
+        preference.candidates,
+        subscriptionWeights(preference.candidates, quota, quotaConfig, now),
+      );
+    }
     default:
       // "first", "fastest" — list order is assumed meaningful.
       return candidates[0];
@@ -150,6 +156,41 @@ export function billingClass(model: Model<Api>): BillingClass {
   }
   if (/openrouter|opencode/.test(p)) return "paid-credit";
   return "unknown";
+}
+
+const WEEKLY_BALANCE_TOLERANCE = 0.02;
+
+function weeklyQuotaPreference(
+  candidates: Model<Api>[],
+  quota: QuotaSnapshot | undefined,
+  cfg: QuotaRoutingConfig | undefined,
+  now: number,
+): { candidates: Model<Api>[]; ignoreWeeklyQuota: boolean } {
+  const fresh = quota && now - quota.fetchedAt < (cfg?.staleMinutes ?? 15) * 60_000;
+  if (!fresh) return { candidates, ignoreWeeklyQuota: false };
+
+  const byProvider = new Map<string, number>();
+  for (const model of candidates) {
+    if (billingClass(model) !== "subscription") continue;
+    const remaining = quota.byProvider[model.provider]?.weeklyRemainingFraction;
+    if (typeof remaining === "number") byProvider.set(model.provider, remaining);
+  }
+  if (byProvider.size < 2) return { candidates, ignoreWeeklyQuota: false };
+
+  const ranked = [...byProvider].sort((a, b) => b[1] - a[1]);
+  const [bestProvider, bestRemaining] = ranked[0];
+  const secondRemaining = ranked[1][1];
+  if (bestRemaining - secondRemaining <= WEEKLY_BALANCE_TOLERANCE + Number.EPSILON) {
+    return { candidates, ignoreWeeklyQuota: true };
+  }
+  if (bestRemaining <= (cfg?.reservePercent ?? 0.03)) {
+    return { candidates, ignoreWeeklyQuota: false };
+  }
+
+  return {
+    candidates: candidates.filter((model) => model.provider === bestProvider),
+    ignoreWeeklyQuota: false,
+  };
 }
 
 /**

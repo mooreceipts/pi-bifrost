@@ -176,6 +176,29 @@ describe("selectWeighted", () => {
   });
 });
 
+describe("selectModel weekly quota preference", () => {
+  it("prefers the subscription provider with over 2% more weekly allowance", () => {
+    const codex = model("openai-codex", "codex");
+    const antigravity = model("antigravity", "gemini");
+    const quota = snapshot(NOW, [["openai-codex", 0.4], ["antigravity", 0.8]]);
+    const got = selectModel([codex, antigravity], "subscription_balance", quota, FRESH, NOW);
+    assert.equal(got?.provider, "antigravity");
+    assert.equal(selectModel([codex, antigravity], "first", quota, FRESH, NOW)?.provider, "openai-codex");
+  });
+
+  it("uses the normal strategy when weekly allowances are within 2%", () => {
+    const codex = model("openai-codex", "codex");
+    const antigravity = model("antigravity", "gemini");
+    const quota = snapshot(NOW, [["openai-codex", 0.6], ["antigravity", 0.61]]);
+
+    assert.equal(selectModel([codex, antigravity], "first", quota, FRESH, NOW)?.provider, "openai-codex");
+    const balanced = withRandom(0.49, () =>
+      selectModel([codex, antigravity], "subscription_balance", quota, FRESH, NOW),
+    );
+    assert.equal(balanced?.provider, "openai-codex");
+  });
+});
+
 describe("selectModel subscription_balance", () => {
   it("routes to the high-allowance subscription provider", () => {
     const codex = model("openai-codex", "codex");
