@@ -496,19 +496,42 @@ async function handleInit(
   const proposal = buildInitProposal(models, classifierModel, state.extensionDir, discoveryMetadata);
 
   const totalAssigned = Object.values(models).reduce((s, v) => s + v.length, 0);
-  uiOutput(ctx, [
-    "--- init ---",
+
+  const probeErrors = probeLoaded
+    ? workingModels.length < available.length
+      ? available
+          .filter((m) => !workingModels.some((w) => w.provider === m.provider && w.model === m.id))
+          .map((m) => `${m.provider}/${m.id}`)
+      : []
+    : [];
+
+  const summaryLines: string[] = [
+    "--- init summary ---",
     `source: ${probeLoaded ? `probe (${workingModels.length} working)` : `registry (${available.length} listed)`}`,
-    ...(discovery ? [`discovery: ${discoverySourceLine(discovery)}`, ...discovery.skipped.map((item) => `skipped: ${item}`)] : []),
-    `assigned: ${totalAssigned} models`,
-    `classifier: ${classifierModel}`,
-    `uncategorized: ${uncategorized.length}`,
-    "proposed config:",
-    JSON.stringify(proposal, null, 2),
-    "----------------",
-    probeLoaded ? "" : "⚠ Run /bifrost probe first to filter unreachable models.",
-    "Assign uncategorized models manually in the generated config.",
-  ].filter(Boolean));
+    ...(discovery ? [`discovery: ${discoverySourceLine(discovery)}`] : []),
+    "",
+  ];
+  for (const [tier, tierModels] of Object.entries(models)) {
+    summaryLines.push(`[${tier}] (${tierModels.length} model${tierModels.length === 1 ? "" : "s"})`);
+    for (const key of tierModels) summaryLines.push(`  ${key}`);
+  }
+  if (uncategorized.length > 0) {
+    summaryLines.push("", `[uncategorized] (${uncategorized.length})`);
+    for (const key of uncategorized) summaryLines.push(`  ${key}`);
+  }
+  summaryLines.push("", `classifier: ${classifierModel}`);
+  if (discovery?.skipped.length) {
+    summaryLines.push("", "skipped (discovery):");
+    for (const item of discovery.skipped) summaryLines.push(`  ${item}`);
+  }
+  if (probeErrors.length > 0) {
+    summaryLines.push("", `errors (${probeErrors.length} model${probeErrors.length === 1 ? "" : "s"} failed probe):`);
+    for (const key of probeErrors) summaryLines.push(`  ${key}`);
+  }
+  if (!probeLoaded) summaryLines.push("", "warning: no probe data — run /bifrost probe first to filter unreachable models");
+  summaryLines.push("--------------------");
+
+  uiOutput(ctx, summaryLines);
 
   if (uncategorized.length > 0) {
     log(ctx, `${uncategorized.length} model(s) uncategorized — edit .pi/bifrost.json to assign them.`);
@@ -520,9 +543,15 @@ async function handleInit(
     return;
   }
 
+  const confirmBody = [
+    `${totalAssigned} model${totalAssigned === 1 ? "" : "s"} across ${Object.keys(models).length} tier${Object.keys(models).length === 1 ? "" : "s"}`,
+    probeErrors.length > 0 ? `${probeErrors.length} model${probeErrors.length === 1 ? "" : "s"} failed probe` : "",
+    uncategorized.length > 0 ? `${uncategorized.length} uncategorized` : "",
+  ].filter(Boolean).join(". ");
+
   const ok = writeWithoutPrompt || await ctx.ui.confirm(
-    "Write config?",
-    "Write proposed config to .pi/bifrost.json?",
+    "Write config to .pi/bifrost.json?",
+    `${confirmBody}.`,
   );
   if (!ok) {
     log(ctx, "config not written");

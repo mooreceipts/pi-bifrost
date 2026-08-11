@@ -2,6 +2,9 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 0.1.13
+- `/bifrost init` now shows a detailed summary before the write prompt: models grouped by tier, classifier selection, discovery skips, and probe errors. The confirm dialog includes model/tier counts and error totals instead of a generic "Write config?" message.
+
 ## 0.1.12
 - Instant circuit-open on HTTP 400+ errors. Any 4xx/5xx response (rate limits, auth failures, server errors) immediately opens the circuit breaker for that model — no need to hit the 3-failure threshold. Next prompt automatically routes to a different model.
 - Improved failure logging: HTTP status codes are surfaced in the warning message with a hint that the circuit has opened.

@@ -67,7 +67,7 @@ Narrow discovery scope when needed:
 | Command | What it does |
 |---------|-------------|
 | `/bifrost` | Dashboard with mode, model, and quick actions |
-| `/bifrost init` | Probe models and generate config |
+| `/bifrost init` | Probe models and generate config (shows tier breakdown, errors, and model list before writing) |
 | `/bifrost on` / `off` | Enable or disable routing |
 | `/bifrost pin` / `unpin` | Lock current model for this session |
 | `/bifrost silence` / `unsilence` | Suppress or restore console output |
