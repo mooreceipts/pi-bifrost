@@ -93,4 +93,38 @@ describe("runtime reliability simulation", () => {
       rmSync(cwd, { recursive: true, force: true });
     }
   });
+
+  it("routes to next healthy model in the same tier after any settled runtime error", () => {
+    const exhausted = makeModel("openrouter", "nvidia/exhausted:free", 0, 0);
+    const next = makeModel("openrouter", "nvidia/next:free", 0, 0);
+    const ctx = makeCtx([exhausted, next]);
+    const cfg = { ...DEFAULT_RELIABILITY, failureThreshold: 3, cooldownMinutes: 60 };
+    const pattern = ["openrouter/nvidia/exhausted:free", "openrouter/nvidia/next:free"];
+    const t0 = Date.UTC(2026, 0, 1, 12, 0, 0);
+    const reason = "Error: Upstream error from Nvidia: ResourceExhausted: Worker local total request limit reached";
+    const state = recordModelFailure(
+      emptyReliabilityState(),
+      modelKey(exhausted),
+      cfg,
+      t0,
+      "agent_settled",
+      reason,
+    );
+
+    const resolved = resolveModelWithFallback(ctx, {
+      requestedTier: "quick",
+      requestedPattern: pattern,
+      requestedStrategy: "first",
+      defaultTier: "quick",
+      defaultPattern: pattern,
+      defaultStrategy: "first",
+      reliabilityState: state,
+      reliabilityConfig: cfg,
+      now: t0 + 1,
+    });
+
+    assert.equal(modelKey(resolved.selected), modelKey(next));
+    assert.equal(resolved.selectedTier, "quick");
+    assert.deepEqual(resolved.skipped.map((item) => item.key), [modelKey(exhausted)]);
+  });
 });

@@ -272,8 +272,8 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     state.reliabilityStore.recordSettled(settled.model, settled.reason);
     if (settled.reason) {
       const httpMatch = settled.reason.match(/\b([45]\d{2})\b/);
-      const hint = httpMatch ? ` (HTTP ${httpMatch[1]} — circuit opened, next prompt routes to a different model)` : "";
-      log(ctx, `Bifrost: recorded provider failure for ${settled.model}${hint}; future prompts will route around it.`, "warning");
+      const detail = httpMatch ? `HTTP ${httpMatch[1]}; ` : "";
+      log(ctx, `Bifrost: provider failure for ${settled.model} (${detail}circuit opened); next prompt routes to the next healthy model in its category.`, "warning");
     }
   });
 

@@ -6,7 +6,6 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { promptWithMinimalSession } from "./session-fallback.ts";
 
 export interface ProbeResult {
   provider: string;
@@ -32,16 +31,9 @@ function assistantText(message: { content: Array<{ type: string; text?: string }
     .join("\n");
 }
 
-type MinimalSessionPrompt = (
-  model: Model<Api>,
-  prompt: string,
-  options: { cwd?: string; systemPrompt?: string },
-) => Promise<string | undefined>;
-
 export async function runProbe(
   ctx: ExtensionContext,
   onProgress?: (done: number, total: number, last: ProbeResult) => void,
-  promptWithSession: MinimalSessionPrompt = promptWithMinimalSession,
   models?: Model<Api>[],
 ): Promise<{ results: ProbeResult[]; path: string }> {
   const available = models ?? ctx.modelRegistry.getAvailable();
@@ -54,7 +46,7 @@ export async function runProbe(
   async function worker() {
     while (cursor < total) {
       const i = cursor++;
-      results[i] = await probeOne(ctx, available[i], promptWithSession);
+      results[i] = await probeOne(ctx, available[i]);
       completed++;
       onProgress?.(completed, total, results[i]);
     }
@@ -73,7 +65,6 @@ export async function runProbe(
 async function probeOne(
   ctx: ExtensionContext,
   model: Model<Api>,
-  promptWithSession: MinimalSessionPrompt,
 ): Promise<ProbeResult> {
   const base: ProbeResult = {
     provider: model.provider,
@@ -126,27 +117,22 @@ async function probeOne(
       const response = await stream.result();
       base.duration_ms = +(performance.now() - start).toFixed(1);
       const text = assistantText(response).trim();
+      const isStreamError = response.stopReason === "error";
+      if (isStreamError) {
+        base.transport = "streamSimple";
+        base.status = "error";
+        base.error = response.errorMessage ?? "model error";
+        return base;
+      }
       if (!text) {
-        const fallbackText = await promptWithSession(model, PROBE_PROMPT, {
-          cwd: ctx.cwd,
-          systemPrompt: "You are a model probe. Reply with only the result.",
-        });
-        if (!fallbackText?.trim()) {
-          base.status = "error";
-          base.error = "empty response";
-          return base;
-        }
+        base.transport = "streamSimple";
         base.status = "ok";
-        base.transport = "session";
+        base.tokens = response.usage.totalTokens;
         return base;
       }
       base.transport = "streamSimple";
-      base.status = response.stopReason === "error" ? "error" : "ok";
-      if (response.stopReason === "error") {
-        base.error = response.errorMessage ?? "model error";
-      } else {
-        base.tokens = response.usage.totalTokens;
-      }
+      base.status = "ok";
+      base.tokens = response.usage.totalTokens;
     } finally {
       clearTimeout(timer);
     }

@@ -401,7 +401,7 @@ async function handleInit(
           ...lastModels,
         ]);
       }
-    }, undefined, available);
+    }, available);
     uiDone(ctx);
     applyProbeOutcomes(state, results);
 
@@ -604,7 +604,7 @@ async function handleUpdate(
   const updateRankingPromise = selected.free ? fetchFreeModelRanking() : Promise.resolve(null);
 
   uiBusy(ctx, `Probing ${discovery.candidates.length} discovered model(s)...`);
-  const { results } = await runProbe(ctx, undefined, undefined, discovery.candidates);
+  const { results } = await runProbe(ctx, undefined, discovery.candidates);
   uiDone(ctx);
   applyProbeOutcomes(state, results);
 
@@ -981,7 +981,7 @@ export function createCommandRouter(
         uiBusy(ctx, `Probing ${available.length} models...`);
         log(ctx, `Probing ${available.length} model(s) with "${PROBE_PROMPT_TEXT}"...`);
 
-        const { results, path } = await runProbe(ctx, undefined, undefined, discovery ? available : undefined);
+        const { results, path } = await runProbe(ctx, undefined, discovery ? available : undefined);
         uiDone(ctx);
         applyProbeOutcomes(state, results);
 

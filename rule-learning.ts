@@ -1,4 +1,3 @@
-import { normalize } from "./cache.ts";
 import type { CacheEntry } from "./cache.ts";
 import type { RouteRule } from "./routing.ts";
 import { debug } from "./debug.ts";

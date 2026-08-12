@@ -26,7 +26,7 @@ See [NOTICE.md](NOTICE.md) and [CHANGELOG.md](CHANGELOG.md) for full attribution
 | Model selection strategy | `first`, `cheapest`, `random`, `largest_context` | Adds `subscription_balance`; opted-in categories favor Codex or Antigravity when one has over 2 percentage points more weekly quota, otherwise preserve configured order |
 | Credit spend policy | All candidates equally eligible | Subscription providers (Codex, Antigravity) preferred; paid OpenRouter candidates blocked until subscriptions drain past `reservePercent` |
 | Model discovery | Probes all Pi models | Adds `--scoped` (Pi enabled-models only) and `--free` (top 5 OpenRouter free models by collection ranking, or top 5 fastest if ranking fetch fails) flags for `init` and `update`; `update --free` enforces the same cap |
-| Reliability | Threshold-based circuit breaker | Instant circuit-open on HTTP 400+ errors (429 rate limits, auth failures, server errors); next prompt auto-routes to a different model |
+| Reliability | Threshold-based circuit breaker | Any final runtime provider error immediately opens that model's circuit (including `ResourceExhausted`); next prompt selects the next healthy model in the same category, then falls back to the default category if needed |
 | Config reconciliation | `init` only | Adds `/bifrost update --scoped/--free` to preview and merge discovery results while preserving manual entries |
 | Silent mode | Not available | `/bifrost silence` / `unsilence` suppresses console and UI output without disabling routing |
 | Error diagnostics | Raw stderr dumps | Structured error messages with corrective actions; `/bifrost doctor` validates config against live registry |
@@ -77,7 +77,7 @@ Run once after install:
 /bifrost init
 ```
 
-This probes every model you have access to, finds which ones respond, and writes a config. Bifrost routes prompts from that point forward.
+This probes every model you have access to, finds which ones respond, and writes a config. Bifrost routes prompts from that point forward. If a selected model ends with a provider error, Bifrost opens its circuit immediately so the next prompt uses the next healthy model in that category. It never automatically replays a failed prompt.
 
 Narrow discovery scope when needed:
 

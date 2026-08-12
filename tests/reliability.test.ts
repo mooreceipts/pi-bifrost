@@ -165,13 +165,22 @@ describe("reliability", () => {
     assert.equal(getCircuitState(state, key, t0, cfg).open, true);
   });
 
-  it("does not immediately open circuit on non-HTTP errors", () => {
+  it("does not immediately open circuit on non-HTTP probe errors", () => {
     const cfg = { ...DEFAULT_RELIABILITY, failureThreshold: 3, windowMinutes: 5, cooldownMinutes: 60 };
     const key = "openrouter/test/model";
     const t0 = Date.UTC(2026, 0, 1, 12, 0, 0);
     let state = emptyReliabilityState();
     state = recordModelFailure(state, key, cfg, t0, "probe", "timeout");
-    assert.equal(getCircuitState(state, key, t0, cfg).open, false, "should not open on generic timeout");
+    assert.equal(getCircuitState(state, key, t0, cfg).open, false, "should not open on generic probe timeout");
+  });
+
+  it("opens circuit immediately on settled runtime errors", () => {
+    const cfg = { ...DEFAULT_RELIABILITY, failureThreshold: 3, windowMinutes: 5, cooldownMinutes: 60 };
+    const key = "openrouter/nvidia/test:free";
+    const t0 = Date.UTC(2026, 0, 1, 12, 0, 0);
+    const reason = "Error: Upstream error from Nvidia: ResourceExhausted: Worker local total request limit reached";
+    const state = recordModelFailure(emptyReliabilityState(), key, cfg, t0, "agent_settled", reason);
+    assert.equal(getCircuitState(state, key, t0, cfg).open, true);
   });
 
   it("half-open: allows one trial after cooldown, closes on success", () => {

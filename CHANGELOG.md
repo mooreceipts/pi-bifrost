@@ -2,6 +2,16 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 0.3.2
+- **Immediate runtime-error failover**: any final provider error now opens that model's circuit immediately, including non-HTTP exhaustion errors such as `ResourceExhausted: Worker local total request limit reached`. The next prompt selects the next healthy model from the same category before falling back to the default category.
+- Probe-only transient errors still use the configured failure threshold; automatic prompt replay remains disabled to prevent duplicate tool calls or other side effects.
+- Removed a stale `rule-learning.ts` import so typechecking passes cleanly.
+
+## 0.3.1
+- **Fixed probe false-negatives on thinking-only models**: Antigravity Gemini models (and other reasoning-capable models) that return thinking-only output with no final text are now correctly treated as reachable. Previously these were marked as errors via a misleading minimal-session fallback that lost custom provider/OAuth registration. `PROBE_MAX_TOKENS` increased from 5 to 16 to reduce thinking truncation.
+- **Probe signature simplified**: `runProbe()` no longer accepts a session-fallback callback; all call sites updated.
+- **Tests updated**: Added "treats thinking-only stream response as ok" and "returns error when stream stopReason is error" tests.
+
 ## 0.3.0
 - **Session-aware routing**: classification pipeline tracks recent tier history. When 2+ of the last 3 prompts used the same tier, ambiguous follow-ups inherit that tier instead of falling to default. Resets on topic change (Jaccard similarity < 0.3), idle timeout (10 min), or inline override.
 - **Prompt complexity heuristic**: pre-classifier stage short-circuits to "quick" for trivially short prompts (<30 tokens, no code blocks, no frontier keywords) and escalates to "frontier" for complex prompts (200+ tokens, 3+ file references, or multi-paragraph with code). Reduces LLM classifier calls by 15-25%.
