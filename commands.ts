@@ -593,7 +593,7 @@ async function handleUpdate(
 
   const discovery = await refreshAndDiscover(ctx, state, requested);
   const selected: DiscoveryOptions = {
-    scoped: requested.scoped && !discovery.unavailableSources.includes("scoped"),
+    scoped: requested.scoped,
     free: requested.free && !discovery.unavailableSources.includes("free"),
   };
   if (!usesDiscovery(selected)) {

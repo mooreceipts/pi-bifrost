@@ -2,6 +2,9 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 0.3.3
+- **Fixed scoped-models filtering on `init --scoped` and `update --scoped`**: when user explicitly requests `--scoped`, all configured scoped-models are now included regardless of discovery errors or probing failures. Auth and connectivity issues are left for the user to handle downstream instead of silently excluding models.
+
 ## 0.3.2
 - **Immediate runtime-error failover**: any final provider error now opens that model's circuit immediately, including non-HTTP exhaustion errors such as `ResourceExhausted: Worker local total request limit reached`. The next prompt selects the next healthy model from the same category before falling back to the default category.
 - Probe-only transient errors still use the configured failure threshold; automatic prompt replay remains disabled to prevent duplicate tool calls or other side effects.
