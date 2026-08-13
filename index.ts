@@ -45,6 +45,7 @@ import {
   classifierModelMissing,
 } from "./diagnostics.js";
 import { RuntimeReliabilityTracker } from "./runtime-reliability.js";
+import { assessThinking, clampToModel, compareThinkingLevels, ThinkingSession, type ThinkingDecision, type ThinkingLevel } from "./thinking.ts";
 import { SessionRoutingContext } from "./session-context.js";
 import {
   REGISTRY_REFRESH_TTL_MS,
@@ -157,9 +158,12 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     enabled: config.enabled ?? true,
     pinned: false,
     classifierEnabled: config.classifier?.enabled ?? true,
+    thinkingMode: config.thinking?.mode ?? "off",
     silent: config.silent ?? false,
   });
   let selfSelecting = false;
+  let selfSettingThinkingLevel: ThinkingLevel | undefined;
+  const thinkingSession = new ThinkingSession();
   const runtimeReliability = new RuntimeReliabilityTracker();
   const sessionContext = new SessionRoutingContext();
   let lastRoutedPrompt: string | undefined;
@@ -195,6 +199,9 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     config,
     enabled: runtimeState.enabled,
     classifierEnabled: runtimeState.classifierEnabled,
+    thinkingMode: runtimeState.thinkingMode ?? "off",
+    thinkingPinned: false,
+    thinkingLevel: pi.getThinkingLevel(),
     pinned: runtimeState.pinned,
     silent: runtimeState.silent,
     cacheEntries,
@@ -205,6 +212,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     saveModeState: () => saveRuntimeState(runtimeStateFile, {
       enabled: state.enabled,
       classifierEnabled: state.classifierEnabled,
+      thinkingMode: state.thinkingMode,
       silent: state.silent,
     }),
     lastRegistryRefreshAt: undefined,
@@ -263,6 +271,12 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     runtimeReliability.observe(event.messages);
   });
 
+  pi.on("turn_end", async (event) => {
+    const failed = event.toolResults.some((result) => result.isError === true);
+    const errored = (event.message as { stopReason?: unknown })?.stopReason === "error";
+    thinkingSession.noteTurnOutcome(failed, errored);
+  });
+
   pi.on("agent_settled", async (_event, ctx) => {
     setBifrostSilent(ctx, state.silent);
     const settled = runtimeReliability.settle();
@@ -275,6 +289,18 @@ export default function bifrostExtension(pi: ExtensionAPI) {
       const detail = httpMatch ? `HTTP ${httpMatch[1]}; ` : "";
       log(ctx, `Bifrost: provider failure for ${settled.model} (${detail}circuit opened); next prompt routes to the next healthy model in its category.`, "warning");
     }
+  });
+
+  pi.on("thinking_level_select", async (event, ctx) => {
+    if (selfSettingThinkingLevel === event.level) {
+      selfSettingThinkingLevel = undefined;
+      state.thinkingLevel = event.level;
+      return;
+    }
+    state.thinkingLevel = event.level;
+    state.thinkingPinned = true;
+    thinkingSession.reset();
+    log(ctx, `Thinking level manually changed to ${event.level}; Bifrost thinking pinned.`);
   });
 
   pi.on("model_select", async (_event, ctx) => {
@@ -464,7 +490,39 @@ export default function bifrostExtension(pi: ExtensionAPI) {
         }
       }
 
+      const applyThinking = () => {
+        if (state.thinkingMode === "off" || state.thinkingPinned) return;
+        const thinkingConfig = state.config.thinking;
+        const rawDecision = assessThinking({
+          text: promptText,
+          turnDepth: thinkingSession.turnDepth(promptText),
+          lastTurnFailed: thinkingSession.getLastTurnOutcome().failed,
+          lastTurnErrored: thinkingSession.getLastTurnOutcome().errored,
+        });
+        const decision: ThinkingDecision = rawDecision.defaulted
+          ? { ...rawDecision, level: thinkingConfig?.defaultLevel ?? "medium", defaulted: true }
+          : rawDecision;
+        let level = decision.level;
+        const sticky = thinkingSession.suggest(promptText);
+        if (sticky && compareThinkingLevels(level, sticky) < 0) level = sticky;
+        const cap = thinkingConfig?.maxLevel ?? "high";
+        if (compareThinkingLevels(level, cap) > 0) level = cap;
+        const tierCap = thinkingConfig?.byTier?.[selectedTier];
+        if (tierCap && compareThinkingLevels(level, tierCap) > 0) level = tierCap;
+        const clamp = clampToModel(level, model);
+        state.lastThinkingDecision = { score: decision.score, level: clamp.level, reasons: decision.reasons };
+        thinkingSession.record(clamp.level, promptText);
+        if (state.thinkingMode === "apply" && clamp.level !== pi.getThinkingLevel()) {
+          selfSettingThinkingLevel = clamp.level;
+          pi.setThinkingLevel(clamp.level);
+          state.thinkingLevel = pi.getThinkingLevel();
+          selfSettingThinkingLevel = undefined;
+        }
+        log(ctx, `thinking: ${state.thinkingMode} ${clamp.level} (score ${decision.score}; ${decision.reasons.join(", ") || "default"})`);
+      };
+
       if (modelKey(model) === modelKey(ctx.model)) {
+        applyThinking();
         uiDone(ctx);
         syncBifrostModeStatus(ctx, state);
         const reason = resolved.fallbackReason ? `, ${resolved.fallbackReason}` : "";
@@ -501,6 +559,8 @@ export default function bifrostExtension(pi: ExtensionAPI) {
         endInput({ model: modelKey(model), ok: false });
         return defaultAction;
       }
+
+      applyThinking();
 
       const detail = [
         selectedTier !== tier ? `selected tier ${selectedTier}` : undefined,

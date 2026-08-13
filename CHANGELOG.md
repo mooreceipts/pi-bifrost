@@ -2,6 +2,15 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.0.0
+- **Added opt-in prompt-derived thinking-level selection**: Bifrost can now intelligently recommend or apply a thinking budget based on prompt complexity, diagnostic intent, session turn depth, and correction markers.
+  - **Zero latency, zero tokens**: Driven by a specialized <20µs scoring heuristic rather than an LLM call.
+  - **Advisory by default**: Logs the recommendation without modifying Pi's active level unless you configure `"mode": "apply"`.
+  - **Sticky task floor**: Upgrades thinking level immediately when needed, but safely prevents mid-task thrashing by requiring a topic change before de-escalating.
+  - **Manual pinning**: Explicitly changing the thinking level via Pi (e.g. `/thinking max`) pins the feature and cedes control back to the user.
+  - **Granular limits**: Configurable `defaultLevel`, `maxLevel`, and `byTier` boundaries.
+- Added `/bifrost thinking [off|advisory|apply|status]` command to control and inspect this dynamically.
+
 ## 0.3.3
 - **Fixed scoped-models filtering on `init --scoped` and `update --scoped`**: when user explicitly requests `--scoped`, all configured scoped-models are now included regardless of discovery errors or probing failures. Auth and connectivity issues are left for the user to handle downstream instead of silently excluding models.
 

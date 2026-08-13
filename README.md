@@ -100,6 +100,7 @@ Narrow discovery scope when needed:
 | `/bifrost reload` | Reload config after manual edits |
 | `/bifrost doctor` | Validate config against available models |
 | `/bifrost classifier on` / `off` | Toggle LLM classifier |
+| `/bifrost thinking [off|advisory|apply|status]` | Inspect or set prompt-derived thinking mode |
 
 Force a tier for one message by prefixing it:
 
@@ -132,7 +133,7 @@ Minimal config after `init`:
 }
 ```
 
-See the [full config reference](docs/) and [examples/](examples/) for advanced options including routing rules, classifier setup, reliability tuning, and quota-aware routing.
+Prompt-derived thinking is disabled by default. Set `"thinking": { "mode": "advisory" }` to log recommendations without changing Pi's level, or use `"mode": "apply"` to opt into automatic level changes. Manual thinking-level changes pin the feature for the session. See the [full config reference](docs/) and [examples/](examples/) for advanced options including routing rules, classifier setup, reliability tuning, and quota-aware routing.
 
 ## Testing
 

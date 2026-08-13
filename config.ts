@@ -6,6 +6,7 @@ import type { CacheOptions } from "./cache.ts";
 import type { DebugConfig } from "./debug.ts";
 import type { ReliabilityConfig } from "./reliability.ts";
 import type { QuotaRoutingConfig } from "./quota.ts";
+import type { ThinkingLevel } from "./thinking.ts";
 
 type ClassifierMethod = "direct" | "subprocess" | "auto";
 
@@ -26,6 +27,13 @@ export interface ClassifierConfig {
   fallbackToRegex?: boolean;
 }
 
+export interface ThinkingConfig {
+  mode?: "off" | "advisory" | "apply";
+  defaultLevel?: ThinkingLevel;
+  maxLevel?: ThinkingLevel;
+  byTier?: Record<string, ThinkingLevel>;
+}
+
 export interface BifrostConfig {
   enabled?: boolean;
   silent?: boolean;
@@ -40,6 +48,7 @@ export interface BifrostConfig {
   reliability?: ReliabilityConfig;
   discovery?: DiscoveryConfig;
   quotaRouting?: QuotaRoutingConfig;
+  thinking?: ThinkingConfig;
 }
 
 export const DEFAULT_RULES: RouteRule[] = [
@@ -204,6 +213,28 @@ export function validateConfig(
           message: `Category strategy for tier "${tier}" — tier not found in models [${modelKeys.join(", ")}].`,
         });
       }
+    }
+  }
+
+  const thinking = config.thinking;
+  const thinkingLevels = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+  for (const [name, level] of [
+    ["defaultLevel", thinking?.defaultLevel],
+    ["maxLevel", thinking?.maxLevel],
+  ] as const) {
+    if (level !== undefined && !thinkingLevels.has(level)) {
+      issues.push({ severity: "warning", message: `Unknown thinking.${name} level "${level}".` });
+    }
+  }
+  if (thinking?.mode !== undefined && !["off", "advisory", "apply"].includes(thinking.mode)) {
+    issues.push({ severity: "warning", message: `Unknown thinking.mode "${thinking.mode}".` });
+  }
+  for (const [tier, level] of Object.entries(thinking?.byTier ?? {})) {
+    if (!modelKeys.includes(tier)) {
+      issues.push({ severity: "error", message: `Thinking level for tier "${tier}" — tier not found in models [${modelKeys.join(", ")}].` });
+    }
+    if (!thinkingLevels.has(level)) {
+      issues.push({ severity: "warning", message: `Unknown thinking.byTier.${tier} level "${level}".` });
     }
   }
 

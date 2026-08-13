@@ -10,6 +10,7 @@ export interface RuntimeModeState {
   enabled: boolean;
   pinned: boolean;
   classifierEnabled: boolean;
+  thinkingMode?: "off" | "advisory" | "apply";
   silent: boolean;
 }
 
@@ -21,6 +22,7 @@ export interface RuntimeModeState {
 export interface PersistedModeState {
   enabled: boolean;
   classifierEnabled: boolean;
+  thinkingMode?: "off" | "advisory" | "apply";
   silent: boolean;
 }
 
@@ -46,6 +48,9 @@ export function loadRuntimeState(path: string, fallback: RuntimeModeState = DEFA
         typeof parsed.classifierEnabled === "boolean"
           ? parsed.classifierEnabled
           : fallback.classifierEnabled,
+      ...(parsed.thinkingMode === "advisory" || parsed.thinkingMode === "apply" || parsed.thinkingMode === "off"
+        ? { thinkingMode: parsed.thinkingMode }
+        : fallback.thinkingMode !== undefined ? { thinkingMode: fallback.thinkingMode } : {}),
       silent: typeof parsed.silent === "boolean" ? parsed.silent : fallback.silent,
     };
   } catch (err) {

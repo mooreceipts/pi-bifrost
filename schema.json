@@ -71,6 +71,9 @@
     "classifier": {
       "$ref": "#/definitions/ClassifierConfig"
     },
+    "thinking": {
+      "$ref": "#/definitions/ThinkingConfig"
+    },
     "cache": {
       "$ref": "#/definitions/CacheConfig"
     },
@@ -88,6 +91,20 @@
     }
   },
   "definitions": {
+    "ThinkingConfig": {
+      "type": "object",
+      "description": "Prompt-derived thinking recommendations. Defaults to off; apply requires explicit opt-in.",
+      "properties": {
+        "mode": { "type": "string", "enum": ["off", "advisory", "apply"], "default": "off" },
+        "defaultLevel": { "type": "string", "enum": ["off", "minimal", "low", "medium", "high", "xhigh", "max"], "default": "medium" },
+        "maxLevel": { "type": "string", "enum": ["off", "minimal", "low", "medium", "high", "xhigh", "max"], "default": "high" },
+        "byTier": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "enum": ["off", "minimal", "low", "medium", "high", "xhigh", "max"] }
+        }
+      },
+      "additionalProperties": false
+    },
     "QuotaRoutingConfig": {
       "type": "object",
       "description": "Subscription-aware frontier weighting. Only meaningful when a tier uses the 'subscription_balance' strategy. Reads weekly quota telemetry for Codex and Antigravity, biases toward the subscription provider with more remaining allowance, and keeps paid OpenRouter candidates out of the running while any subscription allowance remains above reservePercent.",

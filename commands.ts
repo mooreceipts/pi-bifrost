@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { join } from "node:path";
 import { loadRuntimeState, runtimeStatePath } from "./runtime-state.ts";
 import type { BifrostConfig } from "./config.ts";
+import type { ThinkingLevel } from "./thinking.ts";
 import { DEFAULT_RULES, loadConfig, readJson } from "./config.ts";
 import type { CacheEntry } from "./cache.ts";
 import { cachePath, loadCache, saveCache, DEFAULT_MAX_ENTRIES, DEFAULT_THRESHOLD } from "./cache.ts";
@@ -44,6 +45,10 @@ export interface BifrostState {
   config: BifrostConfig;
   enabled: boolean;
   classifierEnabled: boolean;
+  thinkingMode: "off" | "advisory" | "apply";
+  thinkingPinned: boolean;
+  thinkingLevel: ThinkingLevel;
+  lastThinkingDecision?: { score: number; level: ThinkingLevel; reasons: string[] };
   pinned: boolean;
   silent: boolean;
   cacheEntries: CacheEntry[];
@@ -313,11 +318,13 @@ function writeAndReloadConfig(config: BifrostConfig, state: BifrostState): void 
     enabled: state.config.enabled ?? true,
     pinned: false,
     classifierEnabled: state.config.classifier?.enabled ?? true,
+    thinkingMode: state.config.thinking?.mode ?? "off",
     silent: state.config.silent ?? false,
   });
   state.enabled = runtimeState.enabled;
   state.pinned = runtimeState.pinned;
   state.classifierEnabled = runtimeState.classifierEnabled;
+  state.thinkingMode = runtimeState.thinkingMode ?? "off";
   state.silent = runtimeState.silent;
   state.reliabilityStore.reload(state.config.reliability, process.cwd());
   state.invalidatePipeline();
@@ -821,6 +828,7 @@ export const BIFROST_COMMAND_OPTIONS: readonly CommandSpec[] = [
   { value: "classifier on", description: "Enable LLM classifier" },
   { value: "classifier off", description: "Disable LLM classifier" },
   { value: "classifier status", description: "Show classifier state" },
+  { value: "thinking", description: "Show or set thinking mode", argumentHint: "[off|advisory|apply|status]" },
   { value: "debug", description: "Show config and routing state" },
   { value: "doctor", description: "Validate config against available models" },
   { value: "preview", description: "Preview routing for a prompt", argumentHint: "<prompt>" },
@@ -924,10 +932,12 @@ export function createCommandRouter(
         enabled: state.config.enabled ?? true,
         pinned: false,
         classifierEnabled: state.config.classifier?.enabled ?? true,
+        thinkingMode: state.config.thinking?.mode ?? "off",
         silent: state.config.silent ?? false,
       });
       state.enabled = runtimeState.enabled;
       state.classifierEnabled = runtimeState.classifierEnabled;
+      state.thinkingMode = runtimeState.thinkingMode ?? "off";
       state.pinned = runtimeState.pinned;
       state.silent = runtimeState.silent;
       setBifrostSilent(ctx, state.silent);
@@ -1086,6 +1096,26 @@ export function createCommandRouter(
       debug("command", "classifier_toggle", { enabled: false });
       log(ctx, "LLM classifier disabled; regex fallback active");
     }),
+    {
+      value: "thinking",
+      description: "Show or set thinking mode",
+      match: (sub) => sub === "thinking" || sub.startsWith("thinking "),
+      handler: (args, ctx) => {
+        const mode = args.trim().toLowerCase();
+        if (!mode || mode === "status") {
+          const decision = state.lastThinkingDecision;
+          log(ctx, `thinking: mode=${state.thinkingMode} level=${state.thinkingLevel} pinned=${state.thinkingPinned}${decision ? ` last=${decision.level} score=${decision.score} reasons=${decision.reasons.join(",")}` : ""}`);
+          return;
+        }
+        if (mode !== "off" && mode !== "advisory" && mode !== "apply") {
+          log(ctx, "Usage: /bifrost thinking [off|advisory|apply|status]", "warning");
+          return;
+        }
+        state.thinkingMode = mode;
+        state.saveModeState();
+        log(ctx, `thinking mode set to ${mode}`);
+      },
+    },
     exact("classifier status", "Show classifier state", (_, ctx) => {
       const rawModel = state.config.classifier?.model;
       const modelId = Array.isArray(rawModel)
