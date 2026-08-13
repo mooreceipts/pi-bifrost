@@ -144,7 +144,7 @@ export function clearBifrostWidgets(ctx: ExtensionContext) {
   }
 }
 
-export function syncBifrostModeStatus(ctx: ExtensionContext, state: Pick<BifrostState, "enabled" | "pinned" | "classifierEnabled" | "silent">) {
+export function syncBifrostModeStatus(ctx: ExtensionContext, state: Pick<BifrostState, "enabled" | "pinned" | "classifierEnabled" | "silent" | "thinkingMode">) {
   setBifrostModeStatus(ctx, state);
 }
 
@@ -855,6 +855,7 @@ function dashboardCommands(state: Pick<BifrostState, "enabled" | "pinned" | "sil
     state.pinned ? "unpin" : "pin",
     state.silent ? "unsilence" : "silence",
     "preview",
+    "thinking",
     "providers",
     "probe",
     "init",
@@ -1101,7 +1102,7 @@ export function createCommandRouter(
       description: "Show or set thinking mode",
       match: (sub) => sub === "thinking" || sub.startsWith("thinking "),
       handler: (args, ctx) => {
-        const mode = args.trim().toLowerCase();
+        const mode = args.replace(/^thinking\b/i, "").trim().toLowerCase();
         if (!mode || mode === "status") {
           const decision = state.lastThinkingDecision;
           log(ctx, `thinking: mode=${state.thinkingMode} level=${state.thinkingLevel} pinned=${state.thinkingPinned}${decision ? ` last=${decision.level} score=${decision.score} reasons=${decision.reasons.join(",")}` : ""}`);
@@ -1113,6 +1114,7 @@ export function createCommandRouter(
         }
         state.thinkingMode = mode;
         state.saveModeState();
+        syncBifrostModeStatus(ctx, state);
         log(ctx, `thinking mode set to ${mode}`);
       },
     },
@@ -1219,6 +1221,7 @@ export function createCommandRouter(
 
       if (selected.argumentHint) {
         ctx.ui.setEditorText(`/bifrost ${selected.value} `);
+        log(ctx, `Prefilled /bifrost ${selected.value}. Usage: /bifrost ${selected.value} ${selected.argumentHint}`);
         return;
       }
 

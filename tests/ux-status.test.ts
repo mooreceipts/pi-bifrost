@@ -60,7 +60,7 @@ describe("ux status helpers", () => {
     assert.equal(calls[0]?.key, "bifrost-state");
     assert.match(String(calls[0]?.value ?? ""), /Bifrost · on/);
     assert.equal(calls[1]?.key, "bifrost");
-    assert.match(String(calls[1]?.value ?? "").replace(/\x1b\[[0-9;]*m/g, ""), /bifrost: on ~ unpinned ~ unsilence/);
+    assert.match(String(calls[1]?.value ?? "").replace(/\x1b\[[0-9;]*m/g, ""), /bifrost: unpinned ~ unsilence/);
 
     calls.length = 0;
     setBifrostModeStatus(ctx as never, { enabled: false, pinned: false, classifierEnabled: true, silent: false });
@@ -68,15 +68,21 @@ describe("ux status helpers", () => {
     assert.equal(calls[0]?.key, "bifrost-state");
     assert.match(String(calls[0]?.value ?? ""), /Bifrost · off/);
     assert.equal(calls[1]?.key, "bifrost");
-    assert.match(String(calls[1]?.value ?? "").replace(/\x1b\[[0-9;]*m/g, ""), /bifrost: off ~ unpinned ~ unsilence/);
+    assert.match(String(calls[1]?.value ?? "").replace(/\x1b\[[0-9;]*m/g, ""), /bifrost: unpinned ~ unsilence/);
 
     calls.length = 0;
-    setBifrostModeStatus(ctx as never, { enabled: true, pinned: true, classifierEnabled: true, silent: true });
+    setBifrostModeStatus(ctx as never, {
+      enabled: true,
+      pinned: true,
+      classifierEnabled: true,
+      silent: true,
+      thinkingMode: "advisory",
+    });
     assert.equal(calls[0]?.kind, "status");
     assert.equal(calls[0]?.key, "bifrost-state");
-    assert.match(String(calls[0]?.value ?? ""), /Bifrost · pinned/);
+    assert.match(String(calls[0]?.value ?? ""), /Bifrost · pinned · think:advisory/);
     assert.equal(calls[1]?.key, "bifrost");
-    assert.match(String(calls[1]?.value ?? "").replace(/\x1b\[[0-9;]*m/g, ""), /bifrost: on ~ pinned ~ silence/);
+    assert.match(String(calls[1]?.value ?? "").replace(/\x1b\[[0-9;]*m/g, ""), /bifrost: pinned ~ silence ~ think:advisory/);
   });
 
   it("refreshes when there is no prior refresh", () => {

@@ -71,6 +71,9 @@ function makeState(saveModeState: () => void = () => {}) {
     config: { models: {}, reliability: { enabled: true, failureThreshold: 3, windowMinutes: 5, cooldownMinutes: 60 } },
     enabled: true,
     classifierEnabled: true,
+    thinkingMode: "off",
+    thinkingPinned: false,
+    thinkingLevel: "off",
     pinned: false,
     silent: false,
     cacheEntries: [],
@@ -99,7 +102,7 @@ describe("bifrost command ui", () => {
     const select = calls.find((call) => call.kind === "select");
     assert(select, "dashboard should open");
     assert.match(String(select?.title ?? ""), /Bifrost · on · model none/);
-    assert.equal(select?.options?.length, 9);
+    assert.equal(select?.options?.length, 10);
     assert((select?.options ?? []).some((option) => option.includes("Disable routing")));
     assert.equal(state.enabled, false);
   });
@@ -117,6 +120,18 @@ describe("bifrost command ui", () => {
     assert.equal(state.enabled, false);
     assert.equal(state.pinned, true);
     assert.equal(state.classifierEnabled, false);
+  });
+
+  it("sets thinking mode and refreshes status", async () => {
+    const { ctx, calls } = makeCtx();
+    const state = makeState(() => calls.push({ kind: "save" }));
+    const dispatch = createCommandRouter(state as never);
+
+    await dispatch("thinking advisory", ctx as never);
+
+    assert.equal(state.thinkingMode, "advisory");
+    assert(calls.some((call) => call.kind === "save"));
+    assert(calls.some((call) => call.kind === "status" && String(call.value).replace(/\x1b\[[0-9;]*m/g, "").includes("think:advisory")));
   });
 
   it("silences and restores output", async () => {

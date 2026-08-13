@@ -102,6 +102,8 @@ Narrow discovery scope when needed:
 | `/bifrost classifier on` / `off` | Toggle LLM classifier |
 | `/bifrost thinking [off|advisory|apply|status]` | Inspect or set prompt-derived thinking mode |
 
+Active advisory/apply mode appears immediately in Bifrost status as `think:advisory` or `think:apply`.
+
 Force a tier for one message by prefixing it:
 
 ```

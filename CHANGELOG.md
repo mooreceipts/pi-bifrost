@@ -2,6 +2,11 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.0.2
+- Fixed `/bifrost thinking <mode>` parsing so the full routed subcommand no longer fails validation.
+- Added `thinkingMode` to persistent and immediate Bifrost status output as `think:advisory` or `think:apply`.
+- Added the thinking command to the dashboard and prints its accepted arguments when prefilled.
+
 ## 4.0.1
 - Fixed startup on Pi runtimes that reject action methods during extension loading. Active thinking level is now read from `session_start`, after runtime initialization.
 - Added a regression test that fails if the extension factory calls runtime action methods instead of only registering behavior.

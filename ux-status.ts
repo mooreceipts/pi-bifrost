@@ -15,6 +15,7 @@ export interface BifrostModeState {
   pinned: boolean;
   classifierEnabled: boolean;
   silent: boolean;
+  thinkingMode?: "off" | "advisory" | "apply";
 }
 
 export function shouldRefreshRegistry(
@@ -72,19 +73,36 @@ export function setBifrostWorkingMessage(ctx: ExtensionContext, message?: string
 }
 
 function modeLabel(state: BifrostModeState): { tone: "warning" | "success"; text: string } {
-  if (!state.enabled) return { tone: "warning", text: "off" };
-  if (state.pinned) return { tone: "warning", text: "pinned" };
-  if (!state.classifierEnabled) return { tone: "warning", text: "on · classifier off" };
-  return { tone: "success", text: "on" };
+  let text = "on";
+  let tone: "warning" | "success" = "success";
+
+  if (!state.enabled) {
+    return { tone: "warning", text: "off" };
+  }
+  if (state.pinned) {
+    text = "pinned";
+    tone = "warning";
+  } else if (!state.classifierEnabled) {
+    text = "on · classifier off";
+    tone = "warning";
+  }
+
+  if (state.thinkingMode && state.thinkingMode !== "off") {
+    text += ` · think:${state.thinkingMode}`;
+  }
+
+  return { tone, text };
 }
 
-export function formatBifrostStatus(state: { enabled: boolean; pinned: boolean; silent: boolean }): string {
-  const routing = state.enabled ? "\x1b[32mon\x1b[0m" : "\x1b[33moff\x1b[0m";
+export function formatBifrostStatus(state: { enabled: boolean; pinned: boolean; silent: boolean; thinkingMode?: string }): string {
   const pin = state.pinned ? "\x1b[33mpinned\x1b[0m" : "\x1b[90munpinned\x1b[0m";
   const sil = state.silent ? "\x1b[36msilence\x1b[0m" : "\x1b[32munsilence\x1b[0m";
+  const think = state.thinkingMode && state.thinkingMode !== "off" ? `\x1b[35mthink:${state.thinkingMode}\x1b[0m` : "";
   const tilde = "\x1b[90m~\x1b[0m";
-  const rainbow = "\x1b[31mb\x1b[38;5;208mi\x1b[33mf\x1b[32mr\x1b[34mo\x1b[38;5;93ms\x1b[35mt\x1b[0m";
-  return `${rainbow}\x1b[90m:\x1b[0m ${routing} ${tilde} ${pin} ${tilde} ${sil}`;
+  const name = state.enabled
+    ? "\x1b[31mb\x1b[38;5;208mi\x1b[33mf\x1b[32mr\x1b[34mo\x1b[38;5;93ms\x1b[35mt\x1b[0m"
+    : "\x1b[90mbifrost\x1b[0m";
+  return `${name}\x1b[90m:\x1b[0m ${pin} ${tilde} ${sil}${think ? ` ${tilde} ${think}` : ""}`;
 }
 
 export function setBifrostModeStatus(ctx: ExtensionContext, state: BifrostModeState): void {
@@ -103,6 +121,7 @@ export function setBifrostModeStatus(ctx: ExtensionContext, state: BifrostModeSt
         enabled: state.enabled,
         pinned: state.pinned,
         silent: state.silent,
+        thinkingMode: state.thinkingMode,
       };
       writeFileSync(file, JSON.stringify(current, null, 2), "utf-8");
     } catch {}
