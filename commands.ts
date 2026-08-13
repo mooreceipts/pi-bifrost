@@ -95,8 +95,9 @@ export function log(
   ctx: ExtensionContext,
   message: string,
   type?: "info" | "warning" | "error",
+  force = false
 ) {
-  if (isBifrostSilent(ctx)) return;
+  if (!force && isBifrostSilent(ctx)) return;
   finalizeOverwrite();
   console.error(`[bifrost] ${message}`);
   if (ctx.hasUI) ctx.ui.notify(message, type ?? "info");
@@ -1105,17 +1106,17 @@ export function createCommandRouter(
         const mode = args.replace(/^thinking\b/i, "").trim().toLowerCase();
         if (!mode || mode === "status") {
           const decision = state.lastThinkingDecision;
-          log(ctx, `thinking: mode=${state.thinkingMode} level=${state.thinkingLevel} pinned=${state.thinkingPinned}${decision ? ` last=${decision.level} score=${decision.score} reasons=${decision.reasons.join(",")}` : ""}`);
+          log(ctx, `thinking: mode=${state.thinkingMode} level=${state.thinkingLevel} pinned=${state.thinkingPinned}${decision ? ` last=${decision.level} score=${decision.score} reasons=${decision.reasons.join(",")}` : ""}`, "info", true);
           return;
         }
         if (mode !== "off" && mode !== "advisory" && mode !== "apply") {
-          log(ctx, "Usage: /bifrost thinking [off|advisory|apply|status]", "warning");
+          log(ctx, "Usage: /bifrost thinking [off|advisory|apply|status]", "warning", true);
           return;
         }
-        state.thinkingMode = mode;
+        state.thinkingMode = mode as any;
         state.saveModeState();
         syncBifrostModeStatus(ctx, state);
-        log(ctx, `thinking mode set to ${mode}`);
+        log(ctx, `thinking mode set to ${mode}`, "info", true);
       },
     },
     exact("classifier status", "Show classifier state", (_, ctx) => {
@@ -1241,7 +1242,7 @@ export function createCommandRouter(
 
     debug("command", "picker", { command: sub });
     if (!ctx.hasUI) {
-      log(ctx, `Unknown /bifrost subcommand: ${trimmed}`, "warning");
+      log(ctx, `Unknown /bifrost subcommand: ${trimmed}`, "warning", true);
       return;
     }
 
