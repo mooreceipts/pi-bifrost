@@ -201,7 +201,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     classifierEnabled: runtimeState.classifierEnabled,
     thinkingMode: runtimeState.thinkingMode ?? "off",
     thinkingPinned: false,
-    thinkingLevel: pi.getThinkingLevel(),
+    thinkingLevel: "off",
     pinned: runtimeState.pinned,
     silent: runtimeState.silent,
     cacheEntries,
@@ -230,6 +230,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
+    state.thinkingLevel = pi.getThinkingLevel();
     setBifrostSilent(ctx, state.silent);
     syncBifrostModeStatus(ctx, state);
     clearBifrostWidgets(ctx);

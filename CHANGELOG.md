@@ -2,6 +2,10 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.0.1
+- Fixed startup on Pi runtimes that reject action methods during extension loading. Active thinking level is now read from `session_start`, after runtime initialization.
+- Added a regression test that fails if the extension factory calls runtime action methods instead of only registering behavior.
+
 ## 4.0.0
 - **Added opt-in prompt-derived thinking-level selection**: Bifrost can now intelligently recommend or apply a thinking budget based on prompt complexity, diagnostic intent, session turn depth, and correction markers.
   - **Zero latency, zero tokens**: Driven by a specialized <20µs scoring heuristic rather than an LLM call.
