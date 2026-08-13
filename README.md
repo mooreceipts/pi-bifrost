@@ -96,7 +96,7 @@ Narrow discovery scope when needed:
 | `/bifrost on` / `off` | Enable or disable routing |
 | `/bifrost pin` / `unpin` | Lock current model for this session |
 | `/bifrost silence` / `unsilence` | Suppress or restore console output |
-| `/bifrost preview <prompt>` | See routing decision without sending |
+| `/bifrost preview <prompt>` | See model routing, thinking level, and concise reasons without sending |
 | `/bifrost reload` | Reload config after manual edits |
 | `/bifrost doctor` | Validate config against available models |
 | `/bifrost classifier on` / `off` | Toggle LLM classifier |

@@ -49,6 +49,11 @@ export interface BifrostState {
   thinkingPinned: boolean;
   thinkingLevel: ThinkingLevel;
   lastThinkingDecision?: { score: number; level: ThinkingLevel; reasons: string[] };
+  previewThinking?: (
+    prompt: string,
+    selectedTier: string,
+    model: { reasoning?: boolean; thinkingLevelMap?: Record<string, unknown> } | undefined,
+  ) => { level: ThinkingLevel; mode: string; summary: string };
   pinned: boolean;
   silent: boolean;
   cacheEntries: CacheEntry[];
@@ -225,6 +230,7 @@ function resolveTierDisplay(
   return {
     strategy,
     selected: selectedKey ?? "none",
+    selectedModel: resolved.selected,
     selectedTier: resolved.selectedTier ?? "none",
     fallbackReason: resolved.fallbackReason,
     requestedCandidateLines,
@@ -766,6 +772,14 @@ async function handlePreview(
   const tier = classification.tier;
   const source = classification.kind === "classified" ? classification.source : "fallback";
   const display = resolveTierDisplay(tier, state, ctx);
+  const thinking = state.previewThinking?.(prompt, display.selectedTier, display.selectedModel) ?? {
+    level: state.thinkingLevel,
+    mode: state.thinkingMode,
+    summary: state.thinkingPinned ? "manual thinking level is pinned" : "thinking preview unavailable",
+  };
+  const selection = display.selectedTier !== tier
+    ? `${source} chose ${tier}; ${display.fallbackReason ?? "fallback"} selected ${display.selected} from ${display.selectedTier}`
+    : `${source} chose ${tier}; ${display.strategy} selected ${display.selected}`;
 
   const lines = [
     "--- preview ---",
@@ -783,6 +797,9 @@ async function handlePreview(
     lines.push(...display.fallbackCandidateLines);
   }
   lines.push(`selected:  ${display.selected}`);
+  lines.push(`thinking:  ${thinking.level} (${thinking.mode})`);
+  lines.push(`why model: ${selection}`);
+  lines.push(`why thinking: ${thinking.summary}`);
   lines.push("---------------");
 
   await uiResult(ctx, "Bifrost preview", lines);

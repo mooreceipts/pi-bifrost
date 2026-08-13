@@ -180,11 +180,11 @@ export class ThinkingSession {
     if (this.history.length > this.maxHistory) this.history.shift();
   }
 
-  suggest(prompt: string): ThinkingLevel | undefined {
+  suggest(prompt: string, resetOnTopicChange = true): ThinkingLevel | undefined {
     this.pruneStale();
     if (this.history.length === 0) return undefined;
     if (this.isTopicChange(prompt)) {
-      this.reset();
+      if (resetOnTopicChange) this.reset();
       return undefined;
     }
     return this.history[this.history.length - 1].level;

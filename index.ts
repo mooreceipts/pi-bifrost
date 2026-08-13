@@ -219,6 +219,61 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     forceRegistryRefresh: false,
   };
 
+  function decideThinking(
+    prompt: string,
+    selectedTier: string,
+    model: { reasoning?: boolean; thinkingLevelMap?: Record<string, unknown> },
+    preview = false,
+  ) {
+    const thinkingConfig = state.config.thinking;
+    const rawDecision = assessThinking({
+      text: prompt,
+      turnDepth: thinkingSession.turnDepth(prompt),
+      lastTurnFailed: thinkingSession.getLastTurnOutcome().failed,
+      lastTurnErrored: thinkingSession.getLastTurnOutcome().errored,
+    });
+    const decision: ThinkingDecision = rawDecision.defaulted
+      ? { ...rawDecision, level: thinkingConfig?.defaultLevel ?? "medium", defaulted: true }
+      : rawDecision;
+    const reasons = decision.reasons.length > 0 ? [...decision.reasons] : ["configured default"];
+    let level = decision.level;
+    const sticky = thinkingSession.suggest(prompt, !preview);
+    if (sticky && compareThinkingLevels(level, sticky) < 0) {
+      level = sticky;
+      reasons.push(`sticky task floor ${sticky}`);
+    }
+    const cap = thinkingConfig?.maxLevel ?? "high";
+    if (compareThinkingLevels(level, cap) > 0) {
+      level = cap;
+      reasons.push(`maximum ${cap}`);
+    }
+    const tierCap = thinkingConfig?.byTier?.[selectedTier];
+    if (tierCap && compareThinkingLevels(level, tierCap) > 0) {
+      level = tierCap;
+      reasons.push(`${selectedTier} tier maximum ${tierCap}`);
+    }
+    const clamp = clampToModel(level, model);
+    if (clamp.reason) reasons.push(clamp.reason);
+    const readableReasons = reasons.map((reason) => reason.replace(/^[+-]\d+\s+/, "").replaceAll("-", " "));
+    return {
+      level: clamp.level,
+      score: decision.score,
+      reasons,
+      summary: `score ${decision.score}: ${readableReasons.join(", ")}`,
+    };
+  }
+
+  state.previewThinking = (prompt, selectedTier, model) => {
+    if (state.thinkingPinned) {
+      return { level: state.thinkingLevel, mode: "pinned", summary: "manual thinking level is pinned" };
+    }
+    if (state.thinkingMode === "off") {
+      return { level: state.thinkingLevel, mode: "off", summary: "automatic thinking selection is disabled" };
+    }
+    const decision = decideThinking(prompt, selectedTier, model ?? {}, true);
+    return { level: decision.level, mode: state.thinkingMode, summary: decision.summary };
+  };
+
   const handleCommand = createCommandRouter(state);
 
   pi.registerCommand("bifrost", {
@@ -493,33 +548,16 @@ export default function bifrostExtension(pi: ExtensionAPI) {
 
       const applyThinking = () => {
         if (state.thinkingMode === "off" || state.thinkingPinned) return;
-        const thinkingConfig = state.config.thinking;
-        const rawDecision = assessThinking({
-          text: promptText,
-          turnDepth: thinkingSession.turnDepth(promptText),
-          lastTurnFailed: thinkingSession.getLastTurnOutcome().failed,
-          lastTurnErrored: thinkingSession.getLastTurnOutcome().errored,
-        });
-        const decision: ThinkingDecision = rawDecision.defaulted
-          ? { ...rawDecision, level: thinkingConfig?.defaultLevel ?? "medium", defaulted: true }
-          : rawDecision;
-        let level = decision.level;
-        const sticky = thinkingSession.suggest(promptText);
-        if (sticky && compareThinkingLevels(level, sticky) < 0) level = sticky;
-        const cap = thinkingConfig?.maxLevel ?? "high";
-        if (compareThinkingLevels(level, cap) > 0) level = cap;
-        const tierCap = thinkingConfig?.byTier?.[selectedTier];
-        if (tierCap && compareThinkingLevels(level, tierCap) > 0) level = tierCap;
-        const clamp = clampToModel(level, model);
-        state.lastThinkingDecision = { score: decision.score, level: clamp.level, reasons: decision.reasons };
-        thinkingSession.record(clamp.level, promptText);
-        if (state.thinkingMode === "apply" && clamp.level !== pi.getThinkingLevel()) {
-          selfSettingThinkingLevel = clamp.level;
-          pi.setThinkingLevel(clamp.level);
+        const decision = decideThinking(promptText, selectedTier, model);
+        state.lastThinkingDecision = { score: decision.score, level: decision.level, reasons: decision.reasons };
+        thinkingSession.record(decision.level, promptText);
+        if (state.thinkingMode === "apply" && decision.level !== pi.getThinkingLevel()) {
+          selfSettingThinkingLevel = decision.level;
+          pi.setThinkingLevel(decision.level);
           state.thinkingLevel = pi.getThinkingLevel();
           selfSettingThinkingLevel = undefined;
         }
-        log(ctx, `thinking: ${state.thinkingMode} ${clamp.level} (score ${decision.score}; ${decision.reasons.join(", ") || "default"})`);
+        log(ctx, `thinking: ${state.thinkingMode} ${decision.level} (${decision.summary})`);
       };
 
       if (modelKey(model) === modelKey(ctx.model)) {

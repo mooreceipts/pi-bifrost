@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createCommandRouter, getBifrostCommandCompletions } from "../commands.ts";
+import { createCommandRouter, getBifrostCommandCompletions, type BifrostState } from "../commands.ts";
 
 function makeCtx() {
   const calls: Array<{ kind: string; value?: unknown; title?: string; options?: string[]; lines?: string[] }> = [];
@@ -132,6 +132,48 @@ describe("bifrost command ui", () => {
     assert.equal(state.thinkingMode, "advisory");
     assert(calls.some((call) => call.kind === "save"));
     assert(calls.some((call) => call.kind === "status" && String(call.value).replace(/\x1b\[[0-9;]*m/g, "").includes("think:advisory")));
+  });
+
+  it("previews routing, thinking, and concise reasons", async () => {
+    const { ctx } = makeCtx();
+    const model = {
+      provider: "test",
+      id: "reasoner",
+      cost: { input: 1, output: 2 },
+      contextWindow: 128_000,
+      reasoning: true,
+    };
+    Object.assign(ctx as object, {
+      hasUI: false,
+      mode: "rpc",
+      modelRegistry: {
+        find: (provider: string, id: string) => provider === model.provider && id === model.id ? model : undefined,
+        getAvailable: () => [model],
+      },
+    });
+    const state = makeState() as unknown as BifrostState;
+    state.config = { models: { frontier: "test/reasoner" }, strategy: "first" };
+    state.getPipeline = () => ({
+      classify: async () => ({ kind: "classified" as const, tier: "frontier", source: "regex" as const }),
+    });
+    state.previewThinking = () => ({
+      level: "high",
+      mode: "advisory",
+      summary: "score 3: reasoning intent",
+    });
+    const output: string[] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => output.push(args.join(" "));
+    try {
+      await createCommandRouter(state)("preview design this parser", ctx as never);
+    } finally {
+      console.error = originalError;
+    }
+
+    const text = output.join("\n");
+    assert.match(text, /thinking:  high \(advisory\)/);
+    assert.match(text, /why model: regex chose frontier; first selected test\/reasoner/);
+    assert.match(text, /why thinking: score 3: reasoning intent/);
   });
 
   it("silences and restores output", async () => {

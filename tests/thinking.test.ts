@@ -90,6 +90,13 @@ describe("thinking", () => {
     assert.equal(session.suggest("write a short changelog for the release"), undefined);
   });
 
+  it("can preview a topic change without clearing sticky state", () => {
+    const session = new ThinkingSession();
+    session.record("high", "debug the parser failure in parser.ts");
+    assert.equal(session.suggest("write a short changelog", false), undefined);
+    assert.equal(session.suggest("continue debugging the parser failure"), "high");
+  });
+
   it("tracks same-topic turn depth", () => {
     const session = new ThinkingSession();
     session.record("medium", "debug the parser failure");

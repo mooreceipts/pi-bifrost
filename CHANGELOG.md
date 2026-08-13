@@ -2,6 +2,9 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.0.5
+- Added the chosen thinking level and concise model/thinking rationale to `/bifrost preview <prompt>`.
+
 ## 4.0.2
 - Fixed `/bifrost thinking <mode>` parsing so the full routed subcommand no longer fails validation.
 - Added `thinkingMode` to persistent and immediate Bifrost status output as `think:advisory` or `think:apply`.
