@@ -2,6 +2,9 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.0.12
+- Removed forced `temperature: 0` from model probing so provider sampling defaults apply.
+
 ## 4.0.11
 - Removed image-generation model routing (`image-quick` and `image-complex` tiers) to revert 4.0.7 and 4.0.8 features.
 

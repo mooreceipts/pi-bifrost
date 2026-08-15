@@ -106,7 +106,6 @@ async function probeOne(
         },
         {
           maxTokens: PROBE_MAX_TOKENS,
-          temperature: 0,
           signal: controller.signal,
           cacheRetention: "none",
           apiKey: auth.auth.apiKey,
