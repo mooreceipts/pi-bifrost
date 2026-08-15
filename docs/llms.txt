@@ -6,7 +6,7 @@ Pi-bifrost classifies prompts into configured tiers, selects an available model,
 
 ## Links
 
-- Source and documentation: https://github.com/mooreceipts/pi-bifrost
+- Source and documentation: https://github.com/the-matt-moo/pi-bifrost
 - Original project: https://github.com/iamaamir/pi-bifrost by Aamir
 - npm package: https://www.npmjs.com/package/pi-bifrost
 - License: https://opensource.org/license/mit

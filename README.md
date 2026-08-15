@@ -66,7 +66,7 @@ pi install npm:@tenchi4u/pi-bifrost
 From source:
 
 ```bash
-pi install git:github.com/mooreceipts/pi-bifrost
+pi install git:github.com/the-matt-moo/pi-bifrost
 ```
 
 ## Setup

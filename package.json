@@ -6,15 +6,15 @@
   "license": "MIT",
   "author": {
     "name": "Matt",
-    "url": "https://github.com/mooreceipts"
+    "url": "https://github.com/the-matt-moo"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mooreceipts/pi-bifrost.git"
+    "url": "git+https://github.com/the-matt-moo/pi-bifrost.git"
   },
-  "homepage": "https://mooreceipts.github.io/pi-bifrost/",
+  "homepage": "https://the-matt-moo.github.io/pi-bifrost/",
   "bugs": {
-    "url": "https://github.com/mooreceipts/pi-bifrost/issues"
+    "url": "https://github.com/the-matt-moo/pi-bifrost/issues"
   },
   "keywords": [
     "pi-package",

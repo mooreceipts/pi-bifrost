@@ -4,7 +4,7 @@ Pi-bifrost is derived from [Pi-Bifrost](https://github.com/iamaamir/pi-bifrost),
 
 Original project contributions include the core Pi model-routing architecture, classification pipeline, reliability/circuit-breaker design, command interface, tests, documentation, and visual assets.
 
-This fork is maintained at [mooreceipts/pi-bifrost](https://github.com/mooreceipts/pi-bifrost) and adds:
+This fork is maintained at [the-matt-moo/pi-bifrost](https://github.com/the-matt-moo/pi-bifrost) and adds:
 
 - subscription-aware model steering based on weekly quota remaining;
 - preference for subscription providers before paid credit providers;
