@@ -510,27 +510,15 @@ const SUBSCRIPTION_FRONTIER_CONTEXT = 200_000;
 const SUBSCRIPTION_GENERAL_CONTEXT = 64_000;
 const FREE_GENERAL_CONTEXT = 200_000;
 
-/**
- * Cost threshold separating image-quick from image-complex.
- * Image models whose combined prompt+completion+image_output cost
- * exceeds this land in image-complex; below it, image-quick.
- */
-const IMAGE_COMPLEX_COST_THRESHOLD = 3; // $/1M tokens (input + output)
-
-export type BifrostTier = "frontier" | "general" | "quick" | "image-quick" | "image-complex";
+export type BifrostTier = "frontier" | "general" | "quick";
 
 /** Assign a model to a tier based on billing class, cost, and context window. */
 export function guessTier(
   model: Model<Api>,
-  imageModelIds?: ReadonlySet<string>,
 ): BifrostTier {
   const contextWindow = model.contextWindow ?? 0;
   const cost = model.cost ? modelCost(model) : 0;
   const cls: BillingClass = model.cost ? billingClass(model) : "free";
-
-  if (imageModelIds?.has(modelKey(model))) {
-    return cost >= IMAGE_COMPLEX_COST_THRESHOLD ? "image-complex" : "image-quick";
-  }
 
   if (cls === "subscription") {
     if (contextWindow >= SUBSCRIPTION_FRONTIER_CONTEXT) return "frontier";
@@ -544,30 +532,4 @@ export function guessTier(
   if (cost > FRONTIER_COST_THRESHOLD) return "frontier";
   if (cost < QUICK_COST_THRESHOLD) return "quick";
   return "general";
-}
-
-// ── OpenRouter image-model discovery ────────────────────────
-
-/**
- * Fetch OpenRouter's model catalog filtered to image-output models.
- * Returns a Set of canonical model keys (e.g. "openrouter/google/gemini-2.5-flash-image").
- *
- * Uses the documented `output_modalities=image` query parameter.
- * Falls back to an empty set on network errors.
- */
-export async function fetchOpenRouterImageModelIds(
-  openRouterProvider = "openrouter",
-): Promise<Set<string>> {
-  const ids = new Set<string>();
-  try {
-    const res = await fetch("https://openrouter.ai/api/v1/models?output_modalities=image");
-    if (!res.ok) return ids;
-    const json = (await res.json()) as { data?: Array<{ id?: string }> };
-    for (const entry of json.data ?? []) {
-      if (entry.id) ids.add(`${openRouterProvider}/${entry.id}`);
-    }
-  } catch {
-    // Network failure — degrade gracefully
-  }
-  return ids;
 }

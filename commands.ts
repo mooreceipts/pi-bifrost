@@ -23,7 +23,6 @@ import { setBifrostModeStatus, setBifrostStatus } from "./ux-status.ts";
 import { showBifrostResult } from "./result-viewer.ts";
 import {
   getStrategy,
-  fetchOpenRouterImageModelIds,
   guessTier,
   modelKey,
   resolveModelWithFallback,
@@ -262,8 +261,6 @@ const PROPOSAL_STRATEGIES: Record<string, RoutingStrategy> = {
   general: "first",
   frontier: "first",
   economical: "cheapest",
-  "image-quick": "first",
-  "image-complex": "first",
 };
 
 export function buildInitProposal(
@@ -496,15 +493,6 @@ async function handleInit(
 
   const models: Record<string, string[]> = {};
 
-  // Fetch OpenRouter image-generation model IDs so they route to
-  // image-quick / image-complex instead of text tiers.
-  uiBusy(ctx, "Fetching OpenRouter image model catalog...");
-  const imageModelIds = await fetchOpenRouterImageModelIds();
-  uiDone(ctx);
-  if (imageModelIds.size > 0) {
-    log(ctx, `Discovered ${imageModelIds.size} OpenRouter image-generation model(s).`);
-  }
-
   for (const m of available) {
     const key = `${m.provider}/${m.id}`;
 
@@ -516,7 +504,7 @@ async function handleInit(
       if (!working) continue; // known-broken, silently skip
     }
 
-    const tier = guessTier(m, imageModelIds);
+    const tier = guessTier(m);
     models[tier] = models[tier] ?? [];
     models[tier].push(key);
   }
@@ -674,9 +662,7 @@ async function handleUpdate(
   const configPath = join(process.cwd(), CONFIG_DIR_NAME, "bifrost.json");
   const current = readJson<BifrostConfig>(configPath) ?? state.config;
   
-  // Fetch image model IDs for correct tier assignment during update.
-  const updateImageModelIds = await fetchOpenRouterImageModelIds();
-  const diff = reconcileDiscoveredModels(current, discovery, selected, verifiedKeys, updateImageModelIds);
+  const diff = reconcileDiscoveredModels(current, discovery, selected, verifiedKeys);
 
   // Order every tier: non-free by probe duration, then free by collection rank.
   const freeKeys = new Set((discovery.sourceModels.free ?? []).map((m) => `${m.provider}/${m.id}`));

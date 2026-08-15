@@ -145,7 +145,6 @@ export function reconcileDiscoveredModels(
   discovery: DiscoveryResult,
   selected: DiscoveryOptions,
   verifiedKeys: ReadonlySet<string>,
-  imageModelIds?: ReadonlySet<string>,
 ): DiscoveryDiff {
   const models = modelLists(config);
   const originalTier = new Map<string, string>();
@@ -193,7 +192,7 @@ export function reconcileDiscoveredModels(
       continue;
     }
 
-    const tier = guessTier(model, imageModelIds);
+    const tier = guessTier(model);
     (models[tier] ??= []).push(key);
     originalTier.set(key, tier);
     managed[key] = sources;

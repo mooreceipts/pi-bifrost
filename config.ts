@@ -162,20 +162,7 @@ export const DEFAULT_RULES: RouteRule[] = [
       "\\b(use a free model|free model only|no paid model|zero cost|spend nothing|do not spend)\\b",
     model: "quick",
   },
-  {
-    pattern:
-      "\\b((?:re)?generate (?:an? )?(?:simple |quick |small |basic )?(?:image|icon|logo|thumbnail|banner|avatar|illustration|graphic|picture|photo)|(?:re)?create (?:an? )?(?:simple |quick |small |basic )?(?:image|icon|logo|thumbnail|banner|avatar|illustration|graphic)|make (?:an? )?(?:simple |simple |quick |basic )?(?:image|icon|logo|thumbnail)|(?:simple|quick|basic) (?:image|illustration|graphic)|image (?:of|for|showing)|(?:a |an )?(?:small |quick )?(?:icon|logo|badge) (?:for|of|that))\\b",
-    model: "image-quick",
-  },
-  {
-    pattern:
-      "\\b((?:re)?generate (?:an? )?(?:detailed|complex|realistic|high.?quality|high.?res(?:olution)?|professional|photorealistic|cinematic|elaborate|full|complete|custom|stylized|rendered) (?:image|illustration|artwork|scene|portrait|render|visual|graphic)|(?:re)?create (?:an? )?(?:detailed|complex|realistic|high.?quality|professional|photorealistic|cinematic) (?:image|illustration|artwork|scene|portrait)|(?:text.?to.?image|image (?:re)?generation|image synthesis|ai (?:art|image|painting|render)|stable diffusion|dall.?e|midjourney)|(?:detailed|realistic|photorealistic|cinematic|high.?resolution|professional) (?:image|illustration|artwork|render|scene|visual)|draw (?:a |an )?(?:detailed|complex|realistic|full|complete)|(?:(?:re)?create|(?:re)?generate|render|produce|make) (?:a |an )?(?:poster|wallpaper|concept art|character design|product (?:image|photo|render)|marketing (?:image|visual|graphic)))\\b",
-    model: "image-complex",
-  },
 ];
-
-export const IMAGE_TIER_REGEX =
-  /\b((?:re)?generate|(?:re)?create|make|draw|render|produce)\s+(?:\w+\s+){0,4}(?:image|icon|logo|thumbnail|banner|avatar|illustration|graphic|picture|photo|artwork|scene|portrait|poster|wallpaper)\b|\b(?:text-?to-?image|image (?:re)?generation|image synthesis|ai (?:art|image|painting|render)|stable diffusion|dall-?e|midjourney|photorealistic|cinematic render)\b/i;
 
 export const ALL_STRATEGIES: readonly RoutingStrategy[] = [
   "first",

@@ -5,8 +5,6 @@ Native model routing for [Pi](https://pi.dev). Before generation starts, Bifrost
 ```text
 "summarize this file"         → quick model
 "debug this race condition"   → frontier model
-"generate an icon for my app" → image-quick model
-"render a photorealistic scene" → image-complex model
 ```
 
 ## Disclaimer
@@ -34,7 +32,6 @@ See [NOTICE.md](NOTICE.md) and [CHANGELOG.md](CHANGELOG.md) for full attribution
 | Error diagnostics | Raw stderr dumps | Structured error messages with corrective actions; `/bifrost doctor` validates config against live registry |
 | Classification pipeline | 4-stage waterfall (cache→LLM→regex→default) | 7-stage adaptive pipeline: regex pre-check → cache → session momentum → complexity heuristic → parallel LLM+regex → default |
 | Classifier accuracy | Tier names only in LLM prompt | Auto-generated tier descriptions from regex rules injected into classifier prompt |
-| Image generation routing | Not available | `image-quick` and `image-complex` categories; complexity heuristic short-circuits image prompts before text-model tiers are evaluated; routes to `gemini-3.1-flash-lite-image` (quick) or `gemini-3-pro-image` (complex) via OpenRouter |
 | Multi-turn routing | Each prompt classified independently | Session momentum: 2+ same-tier classifications carry forward; topic-change detection resets momentum |
 | Routing latency | Sequential: cache miss → LLM → regex | Parallel: LLM classifier and regex execute concurrently; complexity heuristic skips LLM for obvious cases |
 | Self-correction | Static cache, no feedback | Demotion tracking on manual overrides; cache entries auto-escalate tier after 3 demotions |
@@ -112,8 +109,6 @@ Force a tier for one message by prefixing it:
 ```
 frontier debug this race condition
 quick summarize this
-image-quick generate a small logo
-image-complex create a photorealistic product render
 ```
 
 ## Architecture & Routing Strategy
@@ -122,7 +117,6 @@ Bifrost automates model selection via a robust heuristic pipeline during initial
 
 ### 1. Initialization: Categorization & Ordering
 When you run `/bifrost init`, models are probed, fetched, and categorized automatically:
-- **Image Generation Models**: Bifrost fetches OpenRouter's model catalog via the `output_modalities=image` endpoint. Matching models are routed exclusively to `image-complex` (cost ≥ $3/1M tokens) or `image-quick` (cost < $3/1M). This prevents image models from bleeding into text tiers.
 - **Text Models (`guessTier`)**: Models are categorized by cost and billing class.
   - Cost > $5/1M tokens → `frontier`
   - Cost < $1/1M tokens → `quick`
@@ -141,7 +135,7 @@ Once models are categorized, the configured `strategy` determines which model is
 ### 3. Dynamic Pipeline: Prompt Routing
 For every prompt, Bifrost executes a 7-stage evaluation:
 1. **Inline Overrides**: E.g., `frontier debug this`.
-2. **Complexity Heuristic**: Short-circuits the LLM classifier for obvious cases. Text exceeding size thresholds bypasses LLM straight to `frontier`. Short 3-word commands go to `quick`. Explicit image-generation intents map immediately to `image-quick`/`image-complex`.
+2. **Complexity Heuristic**: Short-circuits the LLM classifier for obvious cases. Text exceeding size thresholds bypasses LLM straight to `frontier`. Short 3-word commands go to `quick`.
 3. **Session Momentum**: 2+ consecutive classifications in the same tier carry forward to ambiguous follow-ups, preventing tier-thrashing during deep debugging. Topic-change detection resets this momentum.
 4. **Cache & Warm Start**: Fuzzy matching reuses recent successful classifications. The cache is pre-seeded by regex rules.
 5. **LLM Classifier**: Analyzes the prompt against auto-generated tier descriptions built from your rules.

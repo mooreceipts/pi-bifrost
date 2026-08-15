@@ -2,27 +2,14 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.0.11
+- Removed image-generation model routing (`image-quick` and `image-complex` tiers) to revert 4.0.7 and 4.0.8 features.
+
 ## 4.0.9
 - Added `anthropic` to the `subscription` billing class so its usage is tracked and balanced alongside `openai-codex` and `antigravity`.
 - `QuotaCoordinator` now fetches Anthropic's OAuth telemetry (`/api/oauth/usage`) using the `pi-anthropic-auth` extension's credentials. This allows the `subscription_balance` strategy to accurately steer traffic away from Anthropic when nearing quota limits.
 
-## 4.0.8
-- Image-generation model detection during `/bifrost init` and `/bifrost update`.
-  Fetches OpenRouter's model catalog via `output_modalities=image` API parameter
-  and routes matching models to `image-quick` or `image-complex` tiers instead of
-  text tiers. Cost threshold at $3/1M tokens separates the two image tiers.
-- `fetchOpenRouterImageModelIds()` exported from `routing.ts` for reuse.
-- `BifrostTier` type now includes `"image-quick" | "image-complex"`.
-
 ## 4.0.7
-- Added `image-quick` and `image-complex` routing categories for text-to-image generation tasks.
-  - `image-quick` → `openrouter/google/gemini-3.1-flash-lite-image` (simple icons, logos, thumbnails, banners).
-  - `image-complex` → `openrouter/google/gemini-3-pro-image` (detailed/realistic/photorealistic/cinematic renders, concept art, marketing visuals).
-- Extended `DEFAULT_RULES` in `config.ts` with regex patterns that match image generation intents and route to the appropriate image tier.
-- Extended `assessComplexity` in `complexity.ts` to short-circuit image requests to `image-quick` or `image-complex` before the standard quick/frontier heuristic runs, preventing misrouting of image tasks to text models.
-- Exported `IMAGE_TIER_REGEX` from `config.ts` for use in tests and downstream tooling.
-- Updated `bifrost.json` default config to include `image-quick` and `image-complex` entries in `models` and `categoryStrategies`.
-
 - Added `Ctrl+Delete` shortcut to toggle Bifrost model pinning for current session.
 
 ## 4.0.5

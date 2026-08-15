@@ -8,9 +8,7 @@
   "categoryStrategies": {
     "quick": "first",
     "general": "first",
-    "frontier": "first",
-    "image-quick": "first",
-    "image-complex": "first"
+    "frontier": "first"
   },
 
   "classifier": {
@@ -42,8 +40,6 @@
   "models": {
     "quick": [],
     "general": [],
-    "frontier": [],
-    "image-quick": ["openrouter/google/gemini-3.1-flash-lite-image"],
-    "image-complex": ["openrouter/google/gemini-3-pro-image"]
+    "frontier": []
   }
 }
