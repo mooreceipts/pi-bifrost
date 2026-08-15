@@ -116,6 +116,44 @@ image-quick generate a small logo
 image-complex create a photorealistic product render
 ```
 
+## Architecture & Routing Strategy
+
+Bifrost automates model selection via a robust heuristic pipeline during initialization and dynamic evaluation at runtime.
+
+### 1. Initialization: Categorization & Ordering
+When you run `/bifrost init`, models are probed, fetched, and categorized automatically:
+- **Image Generation Models**: Bifrost fetches OpenRouter's model catalog via the `output_modalities=image` endpoint. Matching models are routed exclusively to `image-complex` (cost ≥ $3/1M tokens) or `image-quick` (cost < $3/1M). This prevents image models from bleeding into text tiers.
+- **Text Models (`guessTier`)**: Models are categorized by cost and billing class.
+  - Cost > $5/1M tokens → `frontier`
+  - Cost < $1/1M tokens → `quick`
+  - Everything else → `general`
+  - *Subscription models* (Codex/Antigravity) use context-window heuristics instead of cost: ≥200k tokens = `frontier`, ≥64k = `general`, otherwise `quick`.
+- **Intra-Tier Ordering (`sortTierModels`)**: Non-free models are sorted ascending by their **probe latency** (fastest first). Free models are sorted by their **OpenRouter collection rank**.
+
+### 2. Runtime Model Selection Strategies
+Once models are categorized, the configured `strategy` determines which model is chosen from the selected tier:
+- `first` / `fastest` — picks the top model in the list (which `/bifrost init` naturally orders by lowest latency).
+- `cheapest` / `cheapest_input` / `cheapest_output` — strictly optimizes for token cost.
+- `largest_context` — favors models with the largest token window for massive context tasks.
+- `random` — randomly picks a candidate to load-balance or vary responses.
+- `subscription_balance` — evaluates weekly quota telemetry for subscription providers (Codex, Antigravity). Biases toward the provider with >2% more remaining allowance, preserving paid OpenRouter credits until subscription allowances drain below a configured `reservePercent`.
+
+### 3. Dynamic Pipeline: Prompt Routing
+For every prompt, Bifrost executes a 7-stage evaluation:
+1. **Inline Overrides**: E.g., `frontier debug this`.
+2. **Complexity Heuristic**: Short-circuits the LLM classifier for obvious cases. Text exceeding size thresholds bypasses LLM straight to `frontier`. Short 3-word commands go to `quick`. Explicit image-generation intents map immediately to `image-quick`/`image-complex`.
+3. **Session Momentum**: 2+ consecutive classifications in the same tier carry forward to ambiguous follow-ups, preventing tier-thrashing during deep debugging. Topic-change detection resets this momentum.
+4. **Cache & Warm Start**: Fuzzy matching reuses recent successful classifications. The cache is pre-seeded by regex rules.
+5. **LLM Classifier**: Analyzes the prompt against auto-generated tier descriptions built from your rules.
+6. **Regex Rules (`DEFAULT_RULES`)**: Concurrently evaluated against the prompt (e.g., `\b(unit tests?|refactor)\b` → `general`, `\b(race condition|deadlock|security audit)\b` → `frontier`).
+7. **Default Tier**: If all else fails, falls back to the configured default.
+
+### 4. Thinking Mode Steering
+If `"thinking": { "mode": "apply" }` is set in config, Bifrost assesses prompt complexity to dynamically steer the selected model's **thinking level/effort**.
+- Ambiguous logic puzzles, architectural queries, or math proofs elevate the thinking budget.
+- Simple formatting or translation requests lower the thinking budget.
+- `advisory` mode logs what Bifrost *would* do without modifying Pi's active state.
+
 ## Config
 
 Config merges from multiple paths (later wins):
