@@ -15,7 +15,7 @@ const FRONTIER_TOKEN_FLOOR = 200;
 const FRONTIER_FILE_THRESHOLD = 3;
 
 const FRONTIER_KEYWORDS = /\b(debug|architecture|security|review|refactor|redesign|optimize|performance|migrate|race condition|deadlock|memory leak)\b/i;
-const IMAGE_KEYWORDS = /\b(generate|create|make|draw|render|produce)\s+(?:\w+\s+){0,4}(?:image|icon|logo|thumbnail|banner|avatar|illustration|graphic|picture|photo|artwork|scene|portrait|poster|wallpaper)\b|\b(?:text-?to-?image|image generation|image synthesis|ai (?:art|image|painting|render)|stable diffusion|dall-?e|midjourney|photorealistic|cinematic render)\b/i;
+const IMAGE_KEYWORDS = /\b((?:re)?generate|(?:re)?create|make|draw|render|produce)\s+(?:\w+\s+){0,4}(?:image|icon|logo|thumbnail|banner|avatar|illustration|graphic|picture|photo|artwork|scene|portrait|poster|wallpaper)\b|\b(?:text-?to-?image|image (?:re)?generation|image synthesis|ai (?:art|image|painting|render)|stable diffusion|dall-?e|midjourney|photorealistic|cinematic render)\b/i;
 const IMAGE_COMPLEX_KEYWORDS = /\b(?:detailed|complex|realistic|high.?quality|high.?res(?:olution)?|professional|photorealistic|cinematic|elaborate|concept art|character design|product (?:image|render)|marketing (?:image|visual))\b/i;
 const CODE_BLOCK_PATTERN = /```[\s\S]*?```/g;
 const FILE_REF_PATTERN = /(?:^|\s)(?:[\w./\\-]+\.(?:ts|js|tsx|jsx|py|go|rs|java|rb|cpp|c|h|css|html|json|yaml|yml|toml|sql|sh|md))\b/gi;
