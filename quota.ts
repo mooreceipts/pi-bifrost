@@ -166,6 +166,50 @@ async function fetchAntigravityQuota(): Promise<ProviderQuota | undefined> {
 
 // ── Store ──────────────────────────────────────────────────────────
 
+function getAnthropicToken(): string | undefined {
+  try {
+    const authPath = join(getAgentDir(), "auth.json");
+    if (!existsSync(authPath)) return undefined;
+    const json = JSON.parse(readFileSync(authPath, "utf-8"));
+    return json?.providers?.anthropic?.accessToken;
+  } catch {
+    return undefined;
+  }
+}
+
+async function fetchAnthropicQuota(): Promise<ProviderQuota | undefined> {
+  const token = getAnthropicToken();
+  if (!token) return undefined;
+  try {
+    const res = await fetch("https://api.anthropic.com/api/oauth/usage", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "anthropic-beta": "oauth-2025-04-20",
+        Accept: "application/json",
+      },
+    });
+    if (!res.ok) return undefined;
+    const json = (await res.json()) as any;
+    
+    // Default to the 7-day metric for subscription balancing, fallback to session metric
+    const usage = json?.seven_day || json?.five_hour;
+    if (!usage || typeof usage.utilization !== "number") return undefined;
+
+    let hoursToReset: number | undefined;
+    if (usage.resets_at) {
+      const resetMs = new Date(usage.resets_at).getTime() - Date.now();
+      if (resetMs > 0) hoursToReset = resetMs / 3600_000;
+    }
+
+    return {
+      weeklyRemainingFraction: Math.max(0, 1 - usage.utilization),
+      hoursToReset,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 export class QuotaStore {
   private snapshot: QuotaSnapshot = { byProvider: {}, fetchedAt: 0 };
   private inflight: Promise<void> | undefined;
@@ -203,10 +247,11 @@ export class QuotaStore {
   }
 
   private async fetch(): Promise<void> {
-    const [codex, ag] = await Promise.all([fetchCodexQuota(), fetchAntigravityQuota()]);
+    const [codex, ag, anthropic] = await Promise.all([fetchCodexQuota(), fetchAntigravityQuota(), fetchAnthropicQuota()]);
     const byProvider: Record<string, ProviderQuota> = {};
     if (codex) byProvider["openai-codex"] = codex;
     if (ag) byProvider["antigravity"] = ag;
+    if (anthropic) byProvider["anthropic"] = anthropic;
     // Static config pins always win over live telemetry.
     for (const [provider, pinned] of Object.entries(this.cfg?.providers ?? {})) {
       byProvider[provider] = { ...pinned };
