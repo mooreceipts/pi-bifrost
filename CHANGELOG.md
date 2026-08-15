@@ -2,6 +2,17 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.0.7
+- Added `image-quick` and `image-complex` routing categories for text-to-image generation tasks.
+  - `image-quick` → `openrouter/google/gemini-3.1-flash-lite-image` (simple icons, logos, thumbnails, banners).
+  - `image-complex` → `openrouter/google/gemini-3-pro-image` (detailed/realistic/photorealistic/cinematic renders, concept art, marketing visuals).
+- Extended `DEFAULT_RULES` in `config.ts` with regex patterns that match image generation intents and route to the appropriate image tier.
+- Extended `assessComplexity` in `complexity.ts` to short-circuit image requests to `image-quick` or `image-complex` before the standard quick/frontier heuristic runs, preventing misrouting of image tasks to text models.
+- Exported `IMAGE_TIER_REGEX` from `config.ts` for use in tests and downstream tooling.
+- Updated `bifrost.json` default config to include `image-quick` and `image-complex` entries in `models` and `categoryStrategies`.
+
+- Added `Ctrl+Delete` shortcut to toggle Bifrost model pinning for current session.
+
 ## 4.0.5
 - Added the chosen thinking level and concise model/thinking rationale to `/bifrost preview <prompt>`.
 

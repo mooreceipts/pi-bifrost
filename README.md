@@ -5,6 +5,8 @@ Native model routing for [Pi](https://pi.dev). Before generation starts, Bifrost
 ```text
 "summarize this file"         → quick model
 "debug this race condition"   → frontier model
+"generate an icon for my app" → image-quick model
+"render a photorealistic scene" → image-complex model
 ```
 
 ## Disclaimer
@@ -32,6 +34,7 @@ See [NOTICE.md](NOTICE.md) and [CHANGELOG.md](CHANGELOG.md) for full attribution
 | Error diagnostics | Raw stderr dumps | Structured error messages with corrective actions; `/bifrost doctor` validates config against live registry |
 | Classification pipeline | 4-stage waterfall (cache→LLM→regex→default) | 7-stage adaptive pipeline: regex pre-check → cache → session momentum → complexity heuristic → parallel LLM+regex → default |
 | Classifier accuracy | Tier names only in LLM prompt | Auto-generated tier descriptions from regex rules injected into classifier prompt |
+| Image generation routing | Not available | `image-quick` and `image-complex` categories; complexity heuristic short-circuits image prompts before text-model tiers are evaluated; routes to `gemini-3.1-flash-lite-image` (quick) or `gemini-3-pro-image` (complex) via OpenRouter |
 | Multi-turn routing | Each prompt classified independently | Session momentum: 2+ same-tier classifications carry forward; topic-change detection resets momentum |
 | Routing latency | Sequential: cache miss → LLM → regex | Parallel: LLM classifier and regex execute concurrently; complexity heuristic skips LLM for obvious cases |
 | Self-correction | Static cache, no feedback | Demotion tracking on manual overrides; cache entries auto-escalate tier after 3 demotions |
@@ -94,7 +97,7 @@ Narrow discovery scope when needed:
 | `/bifrost` | Dashboard with mode, model, and quick actions |
 | `/bifrost init` | Probe models and generate config (shows tier breakdown, errors, and model list before writing) |
 | `/bifrost on` / `off` | Enable or disable routing |
-| `/bifrost pin` / `unpin` | Lock current model for this session |
+| `/bifrost pin` / `unpin` | Lock current model for this session (`Ctrl+Delete` toggles) |
 | `/bifrost silence` / `unsilence` | Suppress or restore console output |
 | `/bifrost preview <prompt>` | See model routing, thinking level, and concise reasons without sending |
 | `/bifrost reload` | Reload config after manual edits |
@@ -109,6 +112,8 @@ Force a tier for one message by prefixing it:
 ```
 frontier debug this race condition
 quick summarize this
+image-quick generate a small logo
+image-complex create a photorealistic product render
 ```
 
 ## Config
