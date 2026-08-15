@@ -284,6 +284,17 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     },
   });
 
+  pi.registerShortcut("ctrl+delete", {
+    description: "Toggle Bifrost model pin",
+    handler: async (ctx) => {
+      state.pinned = !state.pinned;
+      state.saveModeState();
+      syncBifrostModeStatus(ctx, state);
+      clearBifrostWidgets(ctx);
+      log(ctx, `Bifrost ${state.pinned ? "pinned" : "unpinned"}`);
+    },
+  });
+
   pi.on("session_start", async (_event, ctx) => {
     state.thinkingLevel = pi.getThinkingLevel();
     setBifrostSilent(ctx, state.silent);

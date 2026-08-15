@@ -85,6 +85,13 @@ export function logOverwrite(
   message: string,
 ): void {
   if (isBifrostSilent(ctx)) return;
+  if (ctx.mode === "tui") {
+    if (ctx.hasUI) {
+      ctx.ui.setWorkingMessage(message);
+      ctx.ui.setWorkingVisible(true);
+    }
+    return;
+  }
   process.stderr.write(`\r\x1b[2K[bifrost] ${message}`);
   overwriteActive = true;
 }
@@ -104,16 +111,20 @@ export function log(
 ) {
   if (!force && isBifrostSilent(ctx)) return;
   finalizeOverwrite();
-  console.error(`[bifrost] ${message}`);
+  if (ctx.mode !== "tui") {
+    console.error(`[bifrost] ${message}`);
+  }
   if (ctx.hasUI) ctx.ui.notify(message, type ?? "info");
 }
 
 export function uiBusy(ctx: ExtensionContext, message: string) {
   if (isBifrostSilent(ctx)) return;
   finalizeOverwrite();
-  if (ctx.mode === "tui" && ctx.hasUI) {
-    ctx.ui.setWorkingMessage(message);
-    ctx.ui.setWorkingVisible(true);
+  if (ctx.mode === "tui") {
+    if (ctx.hasUI) {
+      ctx.ui.setWorkingMessage(message);
+      ctx.ui.setWorkingVisible(true);
+    }
   } else {
     console.error(`[bifrost] ${message}`);
   }
@@ -122,15 +133,16 @@ export function uiBusy(ctx: ExtensionContext, message: string) {
 export function uiDone(ctx: ExtensionContext) {
   if (ctx.mode === "tui" && ctx.hasUI) {
     ctx.ui.setWorkingMessage(undefined);
-    ctx.ui.setWorkingVisible(false);
   }
 }
 
 function uiOutput(ctx: ExtensionContext, lines: string[]) {
   if (isBifrostSilent(ctx)) return;
   finalizeOverwrite();
-  if (ctx.mode === "tui" && ctx.hasUI) {
-    ctx.ui.setWidget("bifrost-output", lines);
+  if (ctx.mode === "tui") {
+    if (ctx.hasUI) {
+      ctx.ui.setWidget("bifrost-output", lines);
+    }
   } else {
     for (const line of lines) console.error(`[bifrost] ${line}`);
   }
@@ -140,7 +152,9 @@ async function uiResult(ctx: ExtensionContext, title: string, lines: string[]): 
   if (isBifrostSilent(ctx)) return;
   finalizeOverwrite();
   if (await showBifrostResult(ctx, title, lines)) return;
-  for (const line of lines) console.error(`[bifrost] ${line}`);
+  if (ctx.mode !== "tui") {
+    for (const line of lines) console.error(`[bifrost] ${line}`);
+  }
 }
 
 export function clearBifrostWidgets(ctx: ExtensionContext) {
