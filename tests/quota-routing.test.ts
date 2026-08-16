@@ -177,19 +177,19 @@ describe("selectWeighted", () => {
 });
 
 describe("selectModel weekly quota preference", () => {
-  it("prefers the subscription provider with over 2% more weekly allowance", () => {
+  it("prefers the subscription provider with over 10% more weekly allowance", () => {
     const codex = model("openai-codex", "codex");
     const antigravity = model("antigravity", "gemini");
-    const quota = snapshot(NOW, [["openai-codex", 0.4], ["antigravity", 0.8]]);
+    const quota = snapshot(NOW, [["openai-codex", 0.4], ["antigravity", 0.8]]); // 40% gap
     const got = selectModel([codex, antigravity], "subscription_balance", quota, FRESH, NOW);
     assert.equal(got?.provider, "antigravity");
     assert.equal(selectModel([codex, antigravity], "first", quota, FRESH, NOW)?.provider, "openai-codex");
   });
 
-  it("uses the normal strategy when weekly allowances are within 2%", () => {
+  it("uses the normal strategy when weekly allowances are within 10%", () => {
     const codex = model("openai-codex", "codex");
     const antigravity = model("antigravity", "gemini");
-    const quota = snapshot(NOW, [["openai-codex", 0.6], ["antigravity", 0.61]]);
+    const quota = snapshot(NOW, [["openai-codex", 0.6], ["antigravity", 0.65]]); // 5% gap
 
     assert.equal(selectModel([codex, antigravity], "first", quota, FRESH, NOW)?.provider, "openai-codex");
     const balanced = withRandom(0.49, () =>
@@ -230,5 +230,48 @@ describe("selectModel subscription_balance", () => {
       ),
     );
     assert.equal(got?.provider, "openrouter");
+  });
+});
+
+describe("selectModel subscription_preferred", () => {
+  it("prioritizes subscription models over paid-credit when available", () => {
+    const codex = model("openai-codex", "codex");
+    const or = model("openrouter", "paid");
+    const quota = snapshot(NOW, [["openai-codex", 0.5]]);
+    const got = selectModel([codex, or], "subscription_preferred", quota, FRESH, NOW);
+    assert.equal(got?.provider, "openai-codex");
+  });
+
+  it("falls back to free models when no subscription models available", () => {
+    const free = model("openrouter", "flash-free", 0);
+    const or = model("openrouter", "paid");
+    const got = selectModel([free, or], "subscription_preferred", { byProvider: {}, fetchedAt: NOW }, FRESH, NOW);
+    assert.equal(got?.provider, "openrouter");
+    assert.equal(got?.id, "flash-free");
+  });
+
+  it("falls back to paid-credit when no subscription or free models available", () => {
+    const or = model("openrouter", "paid");
+    const got = selectModel([or], "subscription_preferred", { byProvider: {}, fetchedAt: NOW }, FRESH, NOW);
+    assert.equal(got?.provider, "openrouter");
+  });
+
+  it("balances subscription providers within 10% using quota weights", () => {
+    const codex = model("openai-codex", "codex");
+    const antigravity = model("antigravity", "gemini");
+    const quota = snapshot(NOW, [["openai-codex", 0.3], ["antigravity", 0.9]]);
+    // subscription_preferred should use quota weights and pick antigravity (high allowance)
+    const got = withRandom(0.5, () =>
+      selectModel([codex, antigravity], "subscription_preferred", quota, FRESH, NOW),
+    );
+    assert.equal(got?.provider, "antigravity");
+  });
+
+  it("includes Anthropic as a subscription provider", () => {
+    const anthropic = model("anthropic", "claude");
+    const or = model("openrouter", "paid");
+    const quota = snapshot(NOW, [["anthropic", 0.7]]);
+    const got = selectModel([anthropic, or], "subscription_preferred", quota, FRESH, NOW);
+    assert.equal(got?.provider, "anthropic");
   });
 });

@@ -2,6 +2,19 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.1.0
+
+### Added
+- **New `subscription_preferred` routing strategy**: Prioritizes subscription-linked models (Anthropic, Antigravity, OpenAI Codex) over paid-credit OpenRouter models, then free models, then unknown providers. Subscription models are balanced using quota weights to keep weekly allowances within 10% of each other.
+
+### Changed
+- **Updated `subscription_balance` strategy**: Increased weekly quota balance tolerance from 2% to 10%. When two or more subscription providers' remaining allowances are within 10%, the strategy uses normal list order; otherwise it prefers the provider with more remaining allowance.
+- **`billingClass`**: Anthropic was already included as a subscription provider (added in 4.0.9); it now participates in both `subscription_balance` and `subscription_preferred` quota balancing.
+
+### Notes
+- `subscription_preferred` priority: subscription > free > unknown > paid-credit (OpenRouter).
+- Both strategies require the `quotaRouting` config block and fresh quota telemetry.
+
 ## 4.0.12
 - Removed forced `temperature: 0` from model probing so provider sampling defaults apply.
 

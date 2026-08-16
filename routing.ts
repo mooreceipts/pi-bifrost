@@ -11,7 +11,8 @@ export type RoutingStrategy =
   | "largest_context"
   | "random"
   | "fastest"
-  | "subscription_balance";
+  | "subscription_balance"
+  | "subscription_preferred";
 
 export interface RouteRule {
   pattern: string;
@@ -177,6 +178,32 @@ export function selectModel(
         subscriptionWeights(preference.candidates, quota, quotaConfig, now),
       );
     }
+    case "subscription_preferred": {
+      // Prioritize subscription models, then balance their weekly allowances within 10%.
+      const subscriptionModels = candidates.filter((m) => billingClass(m) === "subscription");
+      const freeModels = candidates.filter((m) => billingClass(m) === "free");
+      const paidCreditModels = candidates.filter((m) => billingClass(m) === "paid-credit");
+      const otherModels = candidates.filter((m) => billingClass(m) === "unknown");
+
+      // If we have subscription models, use them with quota balancing
+      if (subscriptionModels.length > 0) {
+        const preference = weeklyQuotaPreference(subscriptionModels, quota, quotaConfig, now);
+        if (preference.ignoreWeeklyQuota) return preference.candidates[0];
+        return selectWeighted(
+          preference.candidates,
+          subscriptionWeights(preference.candidates, quota, quotaConfig, now),
+        );
+      }
+
+      // Fallback: free models, then others
+      if (freeModels.length > 0) {
+        return selectModel(freeModels, "first");
+      }
+      if (otherModels.length > 0) {
+        return selectModel(otherModels, "first");
+      }
+      return selectModel(paidCreditModels, "first");
+    }
     default:
       // "first", "fastest" — list order is assumed meaningful.
       return candidates[0];
@@ -203,7 +230,7 @@ export function billingClass(model: Model<Api>): BillingClass {
   return "unknown";
 }
 
-const WEEKLY_BALANCE_TOLERANCE = 0.02;
+const WEEKLY_BALANCE_TOLERANCE = 0.10;
 
 function weeklyQuotaPreference(
   candidates: Model<Api>[],
