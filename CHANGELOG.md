@@ -2,6 +2,19 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.1.2
+
+### Fixed
+- Security: classifier subprocess now inherits a minimal env (`PATH`/`HOME`/`USERPROFILE`/`TEMP`/`TMPDIR`) instead of the full `process.env`, avoiding secret leakage into child processes.
+- Classification pipeline correctness: classifier result continues to take priority over regex tier matches (preserves the `classifier beats regex` guarantee).
+
+### Changed
+- Optimization: removed the expensive fallback that spawned a full `pi` session when the registry classifier returned an empty response — now returns `undefined` and lets the pipeline fall through to regex/default.
+- Optimization: reduced classifier subprocess timeout from 120s to 30s for faster failure recovery.
+- Refactor: `regexClassify` is now computed once per classification and reused across pipeline stages (was called up to 3×). Removed the dead no-classifier else-branch.
+- Refactor: cached the resolved cache file path in `index.ts` instead of recomputing `cachePath(process.cwd(), …)` at four call sites.
+- Classification source label `complexity` added to `ClassificationSource` for accurate debug attribution (was mislabeled `regex`).
+
 ## 4.1.1
 
 ### Fixed

@@ -2,7 +2,6 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { spawn } from "node:child_process";
 import { debug } from "./debug.ts";
-import { promptWithMinimalSession } from "./session-fallback.ts";
 import { parseClassifierStderr, formatDiagnostic } from "./diagnostics.ts";
 
 // ── Classifier model — union type, no type-cast lies ─────────
@@ -135,22 +134,8 @@ async function classifyWithDirectHttp(
       .trim();
 
     if (!content) {
-      const fallbackText = await promptWithMinimalSession(
-        classifierModel.model,
-        userPrompt,
-        { cwd: ctx.cwd, systemPrompt },
-      );
-      if (!fallbackText?.trim()) {
-        debug("classifier", "registry.empty_response", { model: classifierId(classifierModel) });
-        return undefined;
-      }
-      const fallbackResult = extractCategory(fallbackText, categories);
-      debug("classifier", "registry.session_done", {
-        model: classifierId(classifierModel),
-        raw: fallbackText.slice(0, 100),
-        tier: fallbackResult,
-      });
-      return fallbackResult;
+      debug("classifier", "registry.empty_response", { model: classifierId(classifierModel) });
+      return undefined;
     }
 
     const result = extractCategory(content, categories);
@@ -254,7 +239,13 @@ async function classifyWithSubprocess(
   return new Promise((resolve) => {
     const child = spawn(command, piArgs, {
       stdio: ["ignore", "pipe", "pipe"],
-      env: process.env,
+      env: {
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        USERPROFILE: process.env.USERPROFILE,
+        TEMP: process.env.TEMP,
+        TMPDIR: process.env.TMPDIR,
+      },
     });
 
     let stdout = "";
@@ -273,7 +264,7 @@ async function classifyWithSubprocess(
       child.kill("SIGTERM");
       console.error(`[bifrost] classifier subprocess timed out`);
       resolve(undefined);
-    }, 120_000);
+    }, 30_000);
 
     child.on("error", (err: Error) => {
       clearTimeout(timer);

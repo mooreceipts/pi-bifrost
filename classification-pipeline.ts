@@ -6,7 +6,7 @@ import { assessComplexity } from "./complexity.ts";
 
 // ── ADT result type ────────────────────────────────────────────
 
-export type ClassificationSource = "cache" | "classifier" | "regex" | "inline";
+export type ClassificationSource = "cache" | "classifier" | "regex" | "complexity" | "inline";
 
 export type ClassificationResult =
   | { readonly kind: "classified"; readonly tier: string; readonly source: ClassificationSource }
@@ -65,15 +65,13 @@ export function createPipeline(deps: PipelineDeps): ClassificationPipeline {
   } = deps;
 
   async function classify(text: string): Promise<ClassificationResult> {
-    // Stage 1: pre-check regex for direct model references only.
-    {
-      const endPre = debugMeasure("pipeline", "regex_pre");
-      const pre = regexClassify(text, regexRules);
-      endPre({ match: !!pre, tier: pre });
-      if (pre && pre.includes("/") && !tiers.includes(pre)) {
-        debug("pipeline", "result", { source: "regex", tier: pre, direct: true });
-        return { kind: "classified", tier: pre, source: "regex" };
-      }
+    // Stage 1: regex pre-check — direct model references short-circuit everything.
+    const endPre = debugMeasure("pipeline", "regex_pre");
+    const regexResult = regexClassify(text, regexRules);
+    endPre({ match: !!regexResult, tier: regexResult });
+    if (regexResult && regexResult.includes("/") && !tiers.includes(regexResult)) {
+      debug("pipeline", "result", { source: "regex", tier: regexResult, direct: true });
+      return { kind: "classified", tier: regexResult, source: "regex" };
     }
 
     if (tiers.length === 0) return { kind: "unclassified" };
@@ -104,68 +102,37 @@ export function createPipeline(deps: PipelineDeps): ClassificationPipeline {
       const verdict = assessComplexity(text, tiers);
       endComplexity({ verdict });
       if (verdict && tiers.includes(verdict)) {
-        debug("pipeline", "result", { source: "regex", tier: verdict, complexity: true });
-        return { kind: "classified", tier: verdict, source: "regex" };
+        debug("pipeline", "result", { source: "complexity", tier: verdict, complexity: true });
+        return { kind: "classified", tier: verdict, source: "complexity" };
       }
     }
 
-    // Stage 3: LLM classifier + regex rules in parallel
+    // Stage 3: LLM classifier — classifier accuracy beats regex tier matches.
     if (classifierModels.length > 0) {
-      const classifierPromise = (async (): Promise<string | undefined> => {
-        for (const model of classifierModels) {
-          try {
-            const endLLM = debugMeasure("pipeline", "classifier.attempt");
-            const tier = await classifyWithLLM(model, text, tiers);
-            const modelId = model.kind === "registry" ? model.model.id : model.id;
-            endLLM({ model: modelId, tier });
-            if (tier && tiers.includes(tier)) return tier;
-          } catch (err) {
-            debug("pipeline", "classifier.error", { error: String(err) });
-            console.error(`[bifrost] classifier model failed: ${err}`);
+      for (const model of classifierModels) {
+        try {
+          const endLLM = debugMeasure("pipeline", "classifier.attempt");
+          const tier = await classifyWithLLM(model, text, tiers);
+          const modelId = model.kind === "registry" ? model.model.id : model.id;
+          endLLM({ model: modelId, tier });
+          if (tier && tiers.includes(tier)) {
+            debug("pipeline", "result", { source: "classifier", tier });
+            return { kind: "classified", tier, source: "classifier" };
           }
-        }
-        return undefined;
-      })();
-
-      const endRegex = debugMeasure("pipeline", "regex");
-      const regexResult = regexClassify(text, regexRules);
-      endRegex({ match: !!regexResult, tier: regexResult });
-
-      const classifierResult = await classifierPromise;
-
-      if (classifierResult) {
-        debug("pipeline", "result", { source: "classifier", tier: classifierResult });
-        return { kind: "classified", tier: classifierResult, source: "classifier" };
-      }
-
-      if (regexResult) {
-        if (tiers.includes(regexResult)) {
-          debug("pipeline", "result", { source: "regex", tier: regexResult });
-          return { kind: "classified", tier: regexResult, source: "regex" };
-        }
-        if (regexResult.includes("/")) {
-          debug("pipeline", "result", { source: "regex", tier: regexResult, direct: true });
-          return { kind: "classified", tier: regexResult, source: "regex" };
-        }
-      }
-    } else {
-      // No classifier models — regex only
-      const endRegex = debugMeasure("pipeline", "regex");
-      const regex = regexClassify(text, regexRules);
-      endRegex({ match: !!regex, tier: regex });
-      if (regex) {
-        if (tiers.includes(regex)) {
-          debug("pipeline", "result", { source: "regex", tier: regex });
-          return { kind: "classified", tier: regex, source: "regex" };
-        }
-        if (regex.includes("/")) {
-          debug("pipeline", "result", { source: "regex", tier: regex, direct: true });
-          return { kind: "classified", tier: regex, source: "regex" };
+        } catch (err) {
+          debug("pipeline", "classifier.error", { error: String(err) });
+          console.error(`[bifrost] classifier model failed: ${err}`);
         }
       }
     }
 
-    // Stage 4: default fallback
+    // Stage 4: regex tier match — reuse the single regexResult (classifier already had priority).
+    if (regexResult && tiers.includes(regexResult)) {
+      debug("pipeline", "result", { source: "regex", tier: regexResult });
+      return { kind: "classified", tier: regexResult, source: "regex" };
+    }
+
+    // Stage 5: default fallback
     debug("pipeline", "result", { source: "fallback", tier: defaultTier });
     if (defaultTier) {
       return { kind: "fallback", tier: defaultTier };

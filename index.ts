@@ -140,6 +140,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
   }
 
   const config = bootConfig;
+  const cacheFilePath = cachePath(process.cwd(), config.cache?.path);
 
   // Validate config on startup. Errors are logged; the extension
   // continues with best-effort routing for warnings.
@@ -150,7 +151,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
       console.error(`[bifrost/config] ${tag}: ${issue.message}`);
     }
   }
-  const cacheEntries = loadCache(cachePath(process.cwd(), config.cache?.path));
+  const cacheEntries = loadCache(cacheFilePath);
   const reliabilityStore = new ReliabilityStore({ cwd: process.cwd(), config: config.reliability });
   const quotaStore = new QuotaStore(config.quotaRouting);
   const runtimeStateFile = runtimeStatePath(process.cwd());
@@ -309,7 +310,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
       const maxEntries = state.config.cache?.maxEntries ?? DEFAULT_MAX_ENTRIES;
       state.cacheEntries = warmStartCache(state.cacheEntries, rules, tiers, maxEntries);
       if (state.cacheEntries.length > 0) {
-        saveCache(cachePath(process.cwd(), state.config.cache?.path), state.cacheEntries);
+        saveCache(cacheFilePath, state.cacheEntries);
         invalidatePipeline();
         debug("cache", "warm_start", { entries: state.cacheEntries.length });
       }
@@ -382,7 +383,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
       const tiers = Object.keys(state.config.models ?? {});
       const escalated = demoteCacheEntry(state.cacheEntries, lastRoutedPrompt, tiers);
       if (escalated) {
-        saveCache(cachePath(process.cwd(), state.config.cache?.path), state.cacheEntries);
+        saveCache(cacheFilePath, state.cacheEntries);
         invalidatePipeline();
         debug("feedback", "demotion_escalated", { prompt: lastRoutedPrompt.slice(0, 50) });
       }
@@ -551,7 +552,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
         if (state.config.cache?.enabled ?? true) {
           const endCacheSave = debugMeasure("input", "cacheSave");
           state.cacheEntries = updateCache(state.cacheEntries, promptText, tier, maxEntries);
-          saveCache(cachePath(process.cwd(), state.config.cache?.path), state.cacheEntries);
+          saveCache(cacheFilePath, state.cacheEntries);
           invalidatePipeline();
           endCacheSave({ entries: state.cacheEntries.length });
         }
