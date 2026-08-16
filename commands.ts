@@ -759,6 +759,50 @@ async function handleBenchmark(
   await uiResult(ctx, "Bifrost benchmark", lines);
 }
 
+async function handleSync(
+  args: string,
+  ctx: ExtensionContext,
+  _state: BifrostState,
+): Promise<void> {
+  clearBifrostWidgets(ctx);
+  const dryRun = args.includes("--dry-run");
+  const scriptPath = "M:\\Github\\pi-profile\\scripts\\sync-bifrost.ps1";
+
+  if (!existsSync(scriptPath)) {
+    log(ctx, `Sync script not found: ${scriptPath}`, "error");
+    return;
+  }
+
+  const psArgs = dryRun ? "-DryRun" : "";
+  setBifrostStatus(ctx, "Syncing bifrost config to pi-profile...", "accent");
+  uiBusy(ctx, "Running sync-bifrost.ps1...");
+
+  const { stdout, stderr, exitCode } = await new Promise<{ stdout: string; stderr: string; exitCode: number }>((resolve) => {
+    const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, ...(dryRun ? ["-DryRun"] : [])], {
+      cwd: "M:\\Github\\pi-profile",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (d) => (stdout += d.toString()));
+    child.stderr.on("data", (d) => (stderr += d.toString()));
+    child.on("close", (code) => resolve({ stdout, stderr, exitCode: code ?? 0 }));
+  });
+
+  uiDone(ctx);
+  syncBifrostModeStatus(ctx, state);
+
+  if (exitCode !== 0) {
+    log(ctx, `Sync failed (exit ${exitCode}): ${stderr.slice(0, 500)}`, "error");
+    return;
+  }
+
+  if (stdout.trim()) {
+    uiOutput(ctx, stdout.trim().split("\n"));
+  }
+  log(ctx, dryRun ? "Dry-run complete — no changes written" : "Sync complete");
+}
+
 async function handlePreview(
   args: string,
   ctx: ExtensionContext,
@@ -855,6 +899,7 @@ export const BIFROST_COMMAND_OPTIONS: readonly CommandSpec[] = [
   { value: "probe", description: "Probe models (optional --scoped and/or --free)" },
   { value: "init", description: "Generate config (optional --scoped and/or --free)" },
   { value: "update", description: "Reconcile discovery-managed models", argumentHint: "--scoped [--free]" },
+  { value: "sync", description: "Sync live bifrost.json to pi-profile repo", argumentHint: "[--dry-run]" },
   { value: "benchmark", description: "Classify a benchmark prompt", argumentHint: "<prompt>" },
   { value: "cache stats", description: "Show classification cache" },
   { value: "cache clear", description: "Clear classification cache" },
