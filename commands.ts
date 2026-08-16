@@ -767,10 +767,12 @@ async function handleSync(
 ): Promise<void> {
   clearBifrostWidgets(ctx);
   const dryRun = args.includes("--dry-run");
-  const scriptPath = "M:\\Github\\pi-profile\\scripts\\sync-bifrost.ps1";
+  const githubPath = process.env.GITHUB_PATH ?? join(process.env.USERPROFILE ?? "", "Github");
+  const profileDir = join(githubPath, "pi-profile");
+  const scriptPath = join(profileDir, "scripts", "sync-bifrost.ps1");
 
   if (!existsSync(scriptPath)) {
-    log(ctx, `Sync script not found: ${scriptPath}`, "error");
+    log(ctx, `Sync script not found: ${scriptPath} (set GITHUB_PATH to override)`, "error");
     return;
   }
 
@@ -779,7 +781,7 @@ async function handleSync(
 
   const { stdout, stderr, exitCode } = await new Promise<{ stdout: string; stderr: string; exitCode: number }>((resolve) => {
     const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, ...(dryRun ? ["-DryRun"] : [])], {
-      cwd: "M:\\Github\\pi-profile",
+      cwd: profileDir,
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
