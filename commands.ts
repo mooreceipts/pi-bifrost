@@ -2,6 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { spawn } from "node:child_process";
 import { loadRuntimeState, runtimeStatePath } from "./runtime-state.ts";
 import type { BifrostConfig } from "./config.ts";
 import type { ThinkingLevel } from "./thinking.ts";
@@ -762,7 +763,7 @@ async function handleBenchmark(
 async function handleSync(
   args: string,
   ctx: ExtensionContext,
-  _state: BifrostState,
+  state: BifrostState,
 ): Promise<void> {
   clearBifrostWidgets(ctx);
   const dryRun = args.includes("--dry-run");
@@ -773,7 +774,6 @@ async function handleSync(
     return;
   }
 
-  const psArgs = dryRun ? "-DryRun" : "";
   setBifrostStatus(ctx, "Syncing bifrost config to pi-profile...", "accent");
   uiBusy(ctx, "Running sync-bifrost.ps1...");
 
@@ -1136,6 +1136,12 @@ export function createCommandRouter(
       description: "Reconcile discovery-managed models",
       match: (sub) => sub === "update" || sub.startsWith("update "),
       handler: (args, ctx) => handleUpdate(args, ctx, state),
+    },
+    {
+      value: "sync",
+      description: "Sync live bifrost.json to pi-profile repo",
+      match: (sub) => sub === "sync" || sub.startsWith("sync "),
+      handler: (args, ctx) => handleSync(args, ctx, state),
     },
 
     // Benchmark
