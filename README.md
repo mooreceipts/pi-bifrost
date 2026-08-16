@@ -100,7 +100,7 @@ Narrow discovery scope when needed:
 | `/bifrost reload` | Reload config after manual edits |
 | `/bifrost doctor` | Validate config against available models |
 | `/bifrost classifier on` / `off` | Toggle LLM classifier |
-| `/bifrost thinking [off|advisory|apply|status]` | Inspect or set prompt-derived thinking mode |
+| `/bifrost thinking [off\|advisory\|apply\|status]` | Inspect or set prompt-derived thinking mode |
 
 Active advisory/apply mode appears immediately in Bifrost status as `think:advisory` or `think:apply`.
 
@@ -121,7 +121,7 @@ When you run `/bifrost init`, models are probed, fetched, and categorized automa
   - Cost > $5/1M tokens → `frontier`
   - Cost < $1/1M tokens → `quick`
   - Everything else → `general`
-  - *Subscription models* (Codex/Antigravity) use context-window heuristics instead of cost: ≥200k tokens = `frontier`, ≥64k = `general`, otherwise `quick`.
+  - *Subscription models* (Anthropic, Codex, Antigravity) use context-window heuristics instead of cost: ≥200k tokens = `frontier`, ≥64k = `general`, otherwise `quick`.
 - **Intra-Tier Ordering (`sortTierModels`)**: Non-free models are sorted ascending by their **probe latency** (fastest first). Free models are sorted by their **OpenRouter collection rank**.
 
 ### 2. Runtime Model Selection Strategies
@@ -130,7 +130,8 @@ Once models are categorized, the configured `strategy` determines which model is
 - `cheapest` / `cheapest_input` / `cheapest_output` — strictly optimizes for token cost.
 - `largest_context` — favors models with the largest token window for massive context tasks.
 - `random` — randomly picks a candidate to load-balance or vary responses.
-- `subscription_balance` — evaluates weekly quota telemetry for subscription providers (Codex, Antigravity). Biases toward the provider with >2% more remaining allowance, preserving paid OpenRouter credits until subscription allowances drain below a configured `reservePercent`.
+- `subscription_preferred` — chooses subscription models first (Anthropic, Codex, Antigravity), quota-balances them with the same 10-point threshold, then falls back to free, unknown, and paid-credit models in that order.
+- `subscription_balance` — evaluates weekly quota telemetry for subscription providers (Anthropic, Codex, Antigravity). When providers differ by more than 10 percentage points of weekly allowance remaining, it favors the provider with more remaining quota; within 10 points, it retains normal list order. It suppresses paid OpenRouter credits while measured subscription allowance remains above `reservePercent`.
 
 ### 3. Dynamic Pipeline: Prompt Routing
 For every prompt, Bifrost executes a 7-stage evaluation:

@@ -2,6 +2,12 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.1.1
+
+### Fixed
+- Escaped `/bifrost thinking` usage-table arguments so Markdown renders the complete command.
+- Documented `subscription_preferred` and corrected subscription routing details: Anthropic participates alongside Codex and Antigravity; the quota-balance threshold is 10 percentage points.
+
 ## 4.1.0
 
 ### Added
