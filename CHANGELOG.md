@@ -2,6 +2,11 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.1.7
+
+### Fixed
+- `thinking_level_select` no longer logs a false "Thinking level manually changed to <level>; Bifrost thinking pinned." when Bifrost applies its own configured-default thinking level. The `selfSettingThinkingLevel` guard was cleared synchronously, before the async event reached the handler; the guard now survives until the handler consumes it (and is cleared at the next `input` as a safety net).
+
 ## 4.1.6
 
 ### Changed

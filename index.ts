@@ -406,6 +406,9 @@ export default function bifrostExtension(pi: ExtensionAPI) {
 
   pi.on("input", async (event, ctx) => {
     setBifrostSilent(ctx, state.silent);
+    // Safety: clear any guard left unconsumed from the previous turn so it can't wedge.
+    // The current turn's thinking_level_select has already been delivered by now.
+    selfSettingThinkingLevel = undefined;
     if (event.source === "extension") return { action: "continue" };
     clearBifrostWidgets(ctx);
     // Passive subagent observation — logged even when routing is disabled,
@@ -572,7 +575,10 @@ export default function bifrostExtension(pi: ExtensionAPI) {
           selfSettingThinkingLevel = decision.level;
           pi.setThinkingLevel(decision.level);
           state.thinkingLevel = pi.getThinkingLevel();
-          selfSettingThinkingLevel = undefined;
+          // ponytail: do NOT clear the guard here. thinking_level_select fires async, after this
+          // block returns; the handler consumes & clears selfSettingThinkingLevel on match. Clearing
+          // synchronously let the event reach the handler with guard already undefined -> false
+          // "Thinking level manually changed" log.
         }
         log(ctx, `thinking: ${state.thinkingMode} ${decision.level} (${decision.summary})`);
       };

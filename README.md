@@ -214,6 +214,7 @@ If `"thinking": { "mode": "apply" }` is set in config, Bifrost assesses prompt c
 - Ambiguous logic puzzles, architectural queries, or math proofs elevate the thinking budget.
 - Simple formatting or translation requests lower the thinking budget.
 - `advisory` mode logs what Bifrost *would* do without modifying Pi's active state.
+- When *you* manually change the thinking level, Bifrost logs `Thinking level manually changed to <level>; Bifrost thinking pinned.` and pins for the session. Bifrost's own automatic applies are silent — that line means a manual change, not a Bifrost default.
 
 ## Config
 
