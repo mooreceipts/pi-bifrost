@@ -420,6 +420,9 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     if (!state.enabled || state.pinned) {
       debug("input", "bypass", { enabled: state.enabled, pinned: state.pinned });
       syncBifrostModeStatus(ctx, state);
+      if (state.pinned) {
+        log(ctx, formatBifrostRouting("", modelKey(ctx.model), "", true));
+      }
       return { action: "continue" };
     }
 

@@ -126,18 +126,22 @@ const TIER_COLORS: Record<string, string> = {
   frontier: "\x1b[38;5;208m", // orange
 };
 
+const HOT_PINK = "\x1b[38;2;255;105;180m"; // pinned category slot
+
 function rainbowWord(word: string): string {
   return [...word]
     .map((ch, i) => `\x1b[38;2;${BIFROST_RAINBOW[i % BIFROST_RAINBOW.length]}m${ch}`)
     .join("") + "\x1b[0m";
 }
 
-/** `Bifrost: <tier> → <model> (suffix)` with rainbow word, colored tier, white arrow, violet model. */
-export function formatBifrostRouting(tier: string, model: string, suffix = ""): string {
-  const tierColor = TIER_COLORS[tier] ?? "\x1b[0m";
+/** `Bifrost: <category> → <model> (suffix)` with rainbow word, white arrow, violet model. When `pinned`, the category slot shows `pinned` in hot pink. */
+export function formatBifrostRouting(tier: string, model: string, suffix = "", pinned = false): string {
+  const category = pinned
+    ? `${HOT_PINK}pinned\x1b[0m`
+    : `${TIER_COLORS[tier] ?? "\x1b[0m"}${tier}\x1b[0m`;
   const arrow = "\x1b[37m→\x1b[0m";
   const tail = suffix ? ` \x1b[90m(${suffix})\x1b[0m` : "";
-  return `${rainbowWord("Bifrost")}: ${tierColor}${tier}\x1b[0m ${arrow} \x1b[38;2;180;70;225m${model}\x1b[0m${tail}`;
+  return `${rainbowWord("Bifrost")}: ${category} ${arrow} \x1b[38;2;180;70;225m${model}\x1b[0m${tail}`;
 }
 
 export function uiBusy(ctx: ExtensionContext, message: string) {

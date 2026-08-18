@@ -2,6 +2,11 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.1.4
+
+### Changed
+- Routing announcement line now shows `pinned` (hot pink) in the category slot when Bifrost is pinned: `Bifrost: pinned → <model>`. Emitted on each prompt while pinned (routing is otherwise bypassed).
+
 ## 4.1.3
 
 ### Changed
