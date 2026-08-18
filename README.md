@@ -71,6 +71,7 @@ Bifrost: <tier> → <model> (<source>; N skipped)
 - `<model>` (provider/name, e.g. `openrouter/tencent/hy3`) is violet.
 - the trailing `(source; N skipped)` note is grey.
 - when pinned, the category slot shows `pinned` in hot pink: `Bifrost: pinned → <model>`.
+- when thinking is pinned, the mode status shows `think:pinned` in orange.
 
 ### Routing Suffix
 

@@ -191,7 +191,7 @@ export function clearBifrostWidgets(ctx: ExtensionContext) {
   }
 }
 
-export function syncBifrostModeStatus(ctx: ExtensionContext, state: Pick<BifrostState, "enabled" | "pinned" | "classifierEnabled" | "silent" | "thinkingMode">) {
+export function syncBifrostModeStatus(ctx: ExtensionContext, state: Pick<BifrostState, "enabled" | "pinned" | "classifierEnabled" | "silent" | "thinkingMode" | "thinkingPinned">) {
   setBifrostModeStatus(ctx, state);
 }
 

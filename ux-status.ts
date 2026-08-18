@@ -16,6 +16,7 @@ export interface BifrostModeState {
   classifierEnabled: boolean;
   silent: boolean;
   thinkingMode?: "off" | "advisory" | "apply";
+  thinkingPinned?: boolean;
 }
 
 export function shouldRefreshRegistry(
@@ -87,17 +88,22 @@ function modeLabel(state: BifrostModeState): { tone: "warning" | "success"; text
     tone = "warning";
   }
 
-  if (state.thinkingMode && state.thinkingMode !== "off") {
+  if (state.thinkingPinned) {
+    text += ` · think:pinned`;
+    tone = "warning";
+  } else if (state.thinkingMode && state.thinkingMode !== "off") {
     text += ` · think:${state.thinkingMode}`;
   }
 
   return { tone, text };
 }
 
-export function formatBifrostStatus(state: { enabled: boolean; pinned: boolean; silent: boolean; thinkingMode?: string }): string {
+export function formatBifrostStatus(state: { enabled: boolean; pinned: boolean; silent: boolean; thinkingMode?: string; thinkingPinned?: boolean }): string {
   const pin = state.pinned ? "\x1b[33mpinned\x1b[0m" : "\x1b[90munpinned\x1b[0m";
   const sil = state.silent ? "\x1b[36msilence\x1b[0m" : "\x1b[32munsilence\x1b[0m";
-  const think = state.thinkingMode && state.thinkingMode !== "off" ? `\x1b[35mthink:${state.thinkingMode}\x1b[0m` : "";
+  const think = state.thinkingPinned
+    ? `\x1b[38;5;208mthink:pinned\x1b[0m`
+    : state.thinkingMode && state.thinkingMode !== "off" ? `\x1b[35mthink:${state.thinkingMode}\x1b[0m` : "";
   const tilde = "\x1b[90m~\x1b[0m";
   const name = state.enabled
     ? "\x1b[31mb\x1b[38;5;208mi\x1b[33mf\x1b[32mr\x1b[34mo\x1b[38;5;93ms\x1b[35mt\x1b[0m"
@@ -122,6 +128,7 @@ export function setBifrostModeStatus(ctx: ExtensionContext, state: BifrostModeSt
         pinned: state.pinned,
         silent: state.silent,
         thinkingMode: state.thinkingMode,
+        thinkingPinned: state.thinkingPinned ?? false,
       };
       writeFileSync(file, JSON.stringify(current, null, 2), "utf-8");
     } catch {}

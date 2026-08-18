@@ -286,13 +286,15 @@ export default function bifrostExtension(pi: ExtensionAPI) {
   });
 
   pi.registerShortcut("ctrl+delete", {
-    description: "Toggle Bifrost model pin",
+    description: "Unpin Bifrost model and thinking",
     handler: async (ctx) => {
-      state.pinned = !state.pinned;
+      const wasPinned = state.pinned || state.thinkingPinned;
+      state.pinned = false;
+      state.thinkingPinned = false;
       state.saveModeState();
       syncBifrostModeStatus(ctx, state);
       clearBifrostWidgets(ctx);
-      log(ctx, `Bifrost ${state.pinned ? "pinned" : "unpinned"}`);
+      log(ctx, wasPinned ? "Bifrost unpinned (model + thinking)" : "Bifrost already unpinned");
     },
   });
 

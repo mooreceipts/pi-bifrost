@@ -2,6 +2,12 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.1.6
+
+### Changed
+- Statusline shows `think:pinned` in orange when thinking level is manually pinned (was `think:<mode>` in magenta regardless of pin state).
+- `Ctrl+Delete` now unpins both model and thinking in one keystroke (was toggle model pin only).
+
 ## 4.1.5
 
 ### Added
