@@ -2,6 +2,11 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.1.5
+
+### Added
+- README: routing suffix reference documenting all classification sources, suffix patterns, and possible values.
+
 ## 4.1.4
 
 ### Changed

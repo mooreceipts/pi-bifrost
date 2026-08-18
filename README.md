@@ -72,6 +72,54 @@ Bifrost: <tier> → <model> (<source>; N skipped)
 - the trailing `(source; N skipped)` note is grey.
 - when pinned, the category slot shows `pinned` in hot pink: `Bifrost: pinned → <model>`.
 
+### Routing Suffix
+
+The parenthetical suffix after the model shows how the tier was determined:
+
+```typescript
+type ClassificationSource = "cache" | "classifier" | "regex" | "complexity" | "inline"
+```
+
+**Suffix patterns:**
+
+1. **Model already active** (no switch):
+   ```
+   (already active, <source>[, <reason>])
+   ```
+   - `source`: one of the 5 classification sources above.
+   - `reason`: optional fallback reason if the requested tier fell back.
+
+2. **Model switched** (classified):
+   ```
+   (<source>[; <detail>])
+   ```
+   - `source`: one of the 5 classification sources above.
+   - `detail`: optional, may include:
+     - `selected tier <name>` — actual tier differs from classified tier.
+     - `<N> skipped` — N models were unreachable/unavailable.
+     - a fallback reason (e.g. quota exhausted).
+
+3. **Model switched** (fallback):
+   ```
+   (fallback[; <detail>])
+   ```
+   - Used when no classification succeeded and the default tier is used.
+   - `detail`: same options as pattern 2.
+
+**All possible values:**
+
+| Value | Meaning |
+|-------|--------|
+| `cache` | Matched a cached prompt/tier pair |
+| `classifier` | LLM classifier determined the tier |
+| `regex` | Regex routing rule matched |
+| `complexity` | Complexity heuristic (quick win for obvious requests) |
+| `inline` | Manual override via `/bifrost <tier> <prompt>` |
+| `already active` | Model unchanged (already Pi’s active model) |
+| `fallback` | No classification succeeded; using fallback tier |
+| `N skipped` | N models unavailable due to circuit break/quota/error |
+| `selected tier <name>` | Routing chose a different tier than classification suggested (quota/reliability) |
+
 ## Install
 
 From npm (scoped):
