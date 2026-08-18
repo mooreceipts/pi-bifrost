@@ -1,5 +1,7 @@
 # Pi-Bifrost
 
+![Pi-Bifrost social card](docs/social-card.png)
+
 Native model routing for [Pi](https://pi.dev). Before generation starts, Bifrost switches Pi's active model based on prompt complexity, routing rules, or LLM classification.
 
 ```text
