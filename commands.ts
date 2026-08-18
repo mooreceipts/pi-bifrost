@@ -118,6 +118,28 @@ export function log(
   if (ctx.hasUI) ctx.ui.notify(message, type ?? "info");
 }
 
+// Rainbow letters mirror the status-line `bifrost` word.
+const BIFROST_RAINBOW = ["255;0;0", "255;127;0", "255;255;0", "0;255;0", "65;105;255", "105;65;165", "180;70;225"];
+const TIER_COLORS: Record<string, string> = {
+  quick: "\x1b[32m",        // green
+  general: "\x1b[36m",      // cyan
+  frontier: "\x1b[38;5;208m", // orange
+};
+
+function rainbowWord(word: string): string {
+  return [...word]
+    .map((ch, i) => `\x1b[38;2;${BIFROST_RAINBOW[i % BIFROST_RAINBOW.length]}m${ch}`)
+    .join("") + "\x1b[0m";
+}
+
+/** `Bifrost: <tier> → <model> (suffix)` with rainbow word, colored tier, white arrow, violet model. */
+export function formatBifrostRouting(tier: string, model: string, suffix = ""): string {
+  const tierColor = TIER_COLORS[tier] ?? "\x1b[0m";
+  const arrow = "\x1b[37m→\x1b[0m";
+  const tail = suffix ? ` \x1b[90m(${suffix})\x1b[0m` : "";
+  return `${rainbowWord("Bifrost")}: ${tierColor}${tier}\x1b[0m ${arrow} \x1b[38;2;180;70;225m${model}\x1b[0m${tail}`;
+}
+
 export function uiBusy(ctx: ExtensionContext, message: string) {
   if (isBifrostSilent(ctx)) return;
   finalizeOverwrite();

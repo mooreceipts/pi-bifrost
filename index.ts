@@ -35,7 +35,7 @@ import {
 import { QuotaStore } from "./quota.js";
 import { ReliabilityStore } from "./reliability-store.js";
 import { loadRuntimeState, runtimeStatePath, saveRuntimeState } from "./runtime-state.js";
-import { createCommandRouter, getBifrostCommandCompletions, log, logOverwrite, uiBusy, uiDone, setBifrostSilent, syncBifrostModeStatus, clearBifrostWidgets, type BifrostState } from "./commands.js";
+import { createCommandRouter, getBifrostCommandCompletions, log, logOverwrite, uiBusy, uiDone, setBifrostSilent, syncBifrostModeStatus, clearBifrostWidgets, formatBifrostRouting, type BifrostState } from "./commands.js";
 import { setupDebug, debug, debugMeasure } from "./debug.js";
 import { parseInlineOverride } from "./inline-override.js";
 import {
@@ -577,7 +577,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
         uiDone(ctx);
         syncBifrostModeStatus(ctx, state);
         const reason = resolved.fallbackReason ? `, ${resolved.fallbackReason}` : "";
-        log(ctx, `Bifrost: ${tier} → ${modelKey(model)} (already active, ${source}${reason})`);
+        log(ctx, formatBifrostRouting(tier, modelKey(model), `already active, ${source}${reason}`));
         debug("input", "model_unchanged", { model: modelKey(model), selectedTier, fallbackReason: resolved.fallbackReason, skipped: resolved.skipped.length, thinkingLevel: ctx.thinkingLevel });
         debug("input", "model_selected", { model: modelKey(model), tier: selectedTier, strategy, source, fallbackReason: resolved.fallbackReason, thinkingLevel: ctx.thinkingLevel, quota: summarizeQuota(quotaStore) });
         runtimeReliability.begin(modelKey(model));
@@ -619,8 +619,8 @@ export default function bifrostExtension(pi: ExtensionAPI) {
         resolved.skipped.length > 0 ? `${resolved.skipped.length} skipped` : undefined,
       ].filter(Boolean).join(", ");
       const doneMsg = classification.kind === "classified"
-        ? `Bifrost: ${tier} → ${modelKey(model)} (${classification.source}${detail ? `; ${detail}` : ""})`
-        : `Bifrost: ${tier} → ${modelKey(model)} (fallback${detail ? `; ${detail}` : ""})`;
+        ? formatBifrostRouting(tier, modelKey(model), `${classification.source}${detail ? `; ${detail}` : ""}`)
+        : formatBifrostRouting(tier, modelKey(model), `fallback${detail ? `; ${detail}` : ""}`);
       syncBifrostModeStatus(ctx, state);
       log(ctx, doneMsg);
       runtimeReliability.begin(modelKey(model));

@@ -57,6 +57,20 @@ The improved pipeline addresses each of these gaps:
 
 6. **Warm start** pre-seeds the cache from your regex rules on first use, so common patterns route instantly without waiting for the LLM classifier.
 
+## Statusline
+
+When Bifrost is the active statusline source, the routing line reads:
+
+```text
+Bifrost: <tier> → <model> (<source>; N skipped)
+```
+
+- `Bifrost` renders in a rainbow gradient.
+- `<tier>` is colored by tier: quick (green), general (cyan), frontier (orange).
+- `→` is white.
+- `<model>` (provider/name, e.g. `openrouter/tencent/hy3`) is violet.
+- the trailing `(source; N skipped)` note is grey.
+
 ## Install
 
 From npm (scoped):

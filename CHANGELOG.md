@@ -2,6 +2,12 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.1.3
+
+### Changed
+- Statusline routing line restyled: the `→` arrow is now white and the model provider/name (e.g. `openrouter/tencent/hy3`) is now violet; the `Bifrost` word keeps its rainbow gradient and the tier keeps its color.
+- Routing log lines (`already active`, `classified`, `fallback`) now render through `formatBifrostRouting`, so the same coloring applies to the TUI routing messages.
+
 ## 4.1.2
 
 ### Fixed
