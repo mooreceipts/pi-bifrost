@@ -370,6 +370,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     state.thinkingLevel = event.level;
     state.thinkingPinned = true;
     thinkingSession.reset();
+    syncBifrostModeStatus(ctx, state);
     log(ctx, `Thinking level manually changed to ${event.level}; Bifrost thinking pinned.`);
   });
 
