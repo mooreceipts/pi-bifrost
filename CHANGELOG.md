@@ -2,6 +2,11 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.1.8
+
+### Fixed
+- `thinking_level_select` now calls `syncBifrostModeStatus`, so `thinkingPinned` is written to `statusline.json` when the thinking level is pinned. Previously only `model_select` synced the file, so the statusline showed `think:pinned` only when the *model* was pinned and kept `think:<mode>` for thinking-only pins.
+
 ## 4.1.7
 
 ### Fixed
