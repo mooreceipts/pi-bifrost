@@ -164,6 +164,10 @@ export default function bifrostExtension(pi: ExtensionAPI) {
   });
   let selfSelecting = false;
   let selfSettingThinkingLevel: ThinkingLevel | undefined;
+  // Model the last thinking_level_select was seen under. Pi sets agent.state.model
+  // BEFORE re-clamping thinking on a model switch, so a thinking_level_select whose
+  // ctx.model differs from this is a model-switch side effect, not a user pin.
+  let lastSeenModel: string | undefined;
   const thinkingSession = new ThinkingSession();
   const runtimeReliability = new RuntimeReliabilityTracker();
   const sessionContext = new SessionRoutingContext();
@@ -300,6 +304,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
 
   pi.on("session_start", async (_event, ctx) => {
     state.thinkingLevel = pi.getThinkingLevel();
+    lastSeenModel = modelKey(ctx.model);
     setBifrostSilent(ctx, state.silent);
     syncBifrostModeStatus(ctx, state);
     clearBifrostWidgets(ctx);
@@ -365,9 +370,16 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     if (selfSettingThinkingLevel === event.level) {
       selfSettingThinkingLevel = undefined;
       state.thinkingLevel = event.level;
+      lastSeenModel = modelKey(ctx.model);
       return;
     }
     state.thinkingLevel = event.level;
+    if (modelKey(ctx.model) !== lastSeenModel) {
+      // Side effect of a model switch (ctrl+p / picker / bifrost routing): don't pin.
+      lastSeenModel = modelKey(ctx.model);
+      debug("bifrost", "thinking_clamped_on_model_switch", { level: event.level, model: lastSeenModel });
+      return;
+    }
     state.thinkingPinned = true;
     thinkingSession.reset();
     syncBifrostModeStatus(ctx, state);
@@ -378,6 +390,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     setBifrostSilent(ctx, state.silent);
     if (selfSelecting) {
       selfSelecting = false;
+      lastSeenModel = modelKey(ctx.model);
       return;
     }
     if (!state.enabled) return;
@@ -394,6 +407,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     }
 
     sessionContext.reset();
+    lastSeenModel = modelKey(ctx.model);
     state.pinned = true;
     state.saveModeState();
     debug("bifrost", "model_select", { model: modelKey(ctx.model) });
@@ -410,6 +424,7 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     // Safety: clear any guard left unconsumed from the previous turn so it can't wedge.
     // The current turn's thinking_level_select has already been delivered by now.
     selfSettingThinkingLevel = undefined;
+    lastSeenModel = modelKey(ctx.model);
     if (event.source === "extension") return { action: "continue" };
     clearBifrostWidgets(ctx);
     // Passive subagent observation — logged even when routing is disabled,

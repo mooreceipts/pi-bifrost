@@ -2,6 +2,11 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.1.9
+
+### Fixed
+- Switching models (`Ctrl+P` / model picker) no longer pins the thinking level. Pi re-clamps the thinking level during a model switch and emits `thinking_level_select` *before* `model_select`, which Bifrost read as a manual pin. Bifrost now compares `ctx.model` against the model the last thinking change was seen under: a different model means the change is a model-switch side effect, not a user pin. Only a thinking change under the same model (`Shift+Tab` / `Ctrl+Tab` cycle) pins thinking; `Ctrl+Delete` still unpins both.
+
 ## 4.1.8
 
 ### Fixed

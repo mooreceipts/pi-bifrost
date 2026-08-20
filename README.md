@@ -215,6 +215,7 @@ If `"thinking": { "mode": "apply" }` is set in config, Bifrost assesses prompt c
 - Simple formatting or translation requests lower the thinking budget.
 - `advisory` mode logs what Bifrost *would* do without modifying Pi's active state.
 - When *you* manually change the thinking level, Bifrost logs `Thinking level manually changed to <level>; Bifrost thinking pinned.` and pins for the session. Bifrost's own automatic applies are silent — that line means a manual change, not a Bifrost default.
+- Only a thinking change under the *same* model pins thinking. Switching models (`Ctrl+P`) re-clamps the thinking level as a side effect; that never pins. `Ctrl+Delete` unpins model and thinking.
 
 ## Config
 
