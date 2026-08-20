@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://pi.dev/schemas/bifrost.json",
   "title": "Bifrost Model Router Config",
-  "description": "Configuration for the pi-bifrost query-aware model router. Maps user prompts to model tiers via regex rules and an optional LLM classifier. Merged from extension defaults → global → project-local → root.",
+  "description": "Configuration for the pi-bifrost query-aware model router. Maps user prompts to model tiers via regex rules and an optional LLM classifier. Merged from extension defaults \u2192 global \u2192 project-local \u2192 root.",
   "type": "object",
   "properties": {
     "enabled": {
@@ -19,47 +19,85 @@
       "type": "string",
       "description": "Model tier to use when no rule matches and the classifier returns no category. Must match a key in 'models'.",
       "default": "general",
-      "examples": ["quick", "general", "frontier"]
+      "examples": [
+        "quick",
+        "general",
+        "frontier"
+      ]
     },
     "strategy": {
       "type": "string",
-      "enum": ["first", "cheapest", "cheapest_input", "cheapest_output", "largest_context", "random", "fastest", "subscription_balance"],
+      "enum": [
+        "first",
+        "cheapest",
+        "cheapest_input",
+        "cheapest_output",
+        "largest_context",
+        "random",
+        "fastest",
+        "subscription_balance"
+      ],
       "description": "Model selection strategy. 'first'/'fastest' picks first candidate (list should be pre-sorted). 'cheapest' sorts by input+output cost. 'cheapest_input' by input cost. 'cheapest_output' by output cost. 'largest_context' by context window. 'random' picks randomly. 'subscription_balance' weighs subscription-provider candidates by weekly usage remaining (see quotaRouting).",
       "default": "first"
     },
     "categoryStrategies": {
       "type": "object",
       "description": "Per-tier strategy overrides. Keys must match tier names in 'models'. If a tier is not listed here, 'strategy' is used.",
-      "default": { "quick": "first", "general": "first", "frontier": "first" },
+      "default": {
+        "quick": "first",
+        "general": "first",
+        "frontier": "first"
+      },
       "additionalProperties": {
         "type": "string",
-        "enum": ["first", "cheapest", "cheapest_input", "cheapest_output", "largest_context", "random", "fastest", "subscription_balance"]
+        "enum": [
+          "first",
+          "cheapest",
+          "cheapest_input",
+          "cheapest_output",
+          "largest_context",
+          "random",
+          "fastest",
+          "subscription_balance"
+        ]
       }
     },
     "models": {
       "type": "object",
-      "description": "Model tiers. Each key is a tier name (e.g. 'quick', 'general', 'frontier'). Values are provider/model patterns — either a single string or an ordered array of candidate patterns.",
+      "description": "Model tiers. Each key is a tier name (e.g. 'quick', 'general', 'frontier'). Values are provider/model patterns \u2014 either a single string or an ordered array of candidate patterns.",
       "default": {},
       "additionalProperties": {
         "oneOf": [
-          { "type": "string" },
+          {
+            "type": "string"
+          },
           {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           }
         ]
       },
       "examples": [
         {
-          "quick": ["opencode/deepseek-v4-flash-free"],
-          "general": ["opencode-go/deepseek-v4-pro", "openai-codex/gpt-5.4-mini"],
-          "frontier": ["openai-codex/gpt-5.6-sol", "opencode-go/glm-5.2"]
+          "quick": [
+            "opencode/deepseek-v4-flash-free"
+          ],
+          "general": [
+            "opencode-go/deepseek-v4-pro",
+            "openai-codex/gpt-5.4-mini"
+          ],
+          "frontier": [
+            "openai-codex/gpt-5.6-sol",
+            "opencode-go/glm-5.2"
+          ]
         }
       ]
     },
     "rules": {
       "type": "array",
-      "description": "Regex-based routing rules applied in order. First matching rule determines the model tier. Case-insensitive matching. If no rule matches, the 'default' tier is used. Prefer using bifrost-routes.json for project-specific rules — it overrides this field.",
+      "description": "Regex-based routing rules applied in order. First matching rule determines the model tier. Case-insensitive matching. If no rule matches, the 'default' tier is used. Prefer using bifrost-routes.json for project-specific rules \u2014 it overrides this field.",
       "x-aiHints": {
         "danger": "Wrong regex can misroute all requests. Test with /bifrost preview <prompt> before committing.",
         "atomic": true
@@ -88,6 +126,21 @@
     },
     "quotaRouting": {
       "$ref": "#/definitions/QuotaRoutingConfig"
+    },
+    "keys": {
+      "type": "object",
+      "description": "Machine-local key bindings for Bifrost shortcuts. Unset = not bound.",
+      "additionalProperties": false,
+      "properties": {
+        "pin": {
+          "type": "string",
+          "description": "Optional key that pins Bifrost to the current model. Avoid Pi's model-cycle bindings."
+        },
+        "unpin": {
+          "type": "string",
+          "description": "Key that unpins model + thinking, e.g. ctrl+delete"
+        }
+      }
     }
   },
   "definitions": {
@@ -95,12 +148,55 @@
       "type": "object",
       "description": "Prompt-derived thinking recommendations. Defaults to off; apply requires explicit opt-in.",
       "properties": {
-        "mode": { "type": "string", "enum": ["off", "advisory", "apply"], "default": "off" },
-        "defaultLevel": { "type": "string", "enum": ["off", "minimal", "low", "medium", "high", "xhigh", "max"], "default": "medium" },
-        "maxLevel": { "type": "string", "enum": ["off", "minimal", "low", "medium", "high", "xhigh", "max"], "default": "high" },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "off",
+            "advisory",
+            "apply"
+          ],
+          "default": "off"
+        },
+        "defaultLevel": {
+          "type": "string",
+          "enum": [
+            "off",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "default": "medium"
+        },
+        "maxLevel": {
+          "type": "string",
+          "enum": [
+            "off",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "default": "high"
+        },
         "byTier": {
           "type": "object",
-          "additionalProperties": { "type": "string", "enum": ["off", "minimal", "low", "medium", "high", "xhigh", "max"] }
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "off",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
         }
       },
       "additionalProperties": false
@@ -142,8 +238,15 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "weeklyRemainingFraction": { "type": "number", "minimum": 0, "maximum": 1 },
-              "hoursToReset": { "type": "number", "minimum": 0 }
+              "weeklyRemainingFraction": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "hoursToReset": {
+                "type": "number",
+                "minimum": 0
+              }
             }
           }
         }
@@ -152,7 +255,9 @@
     "DiscoveryConfig": {
       "type": "object",
       "description": "Bifrost-owned discovery metadata. Update commands use it to avoid changing manual model entries.",
-      "required": ["managed"],
+      "required": [
+        "managed"
+      ],
       "additionalProperties": false,
       "properties": {
         "managed": {
@@ -163,7 +268,10 @@
             "uniqueItems": true,
             "items": {
               "type": "string",
-              "enum": ["scoped", "free"]
+              "enum": [
+                "scoped",
+                "free"
+              ]
             }
           }
         }
@@ -171,7 +279,10 @@
     },
     "RouteRule": {
       "type": "object",
-      "required": ["pattern", "model"],
+      "required": [
+        "pattern",
+        "model"
+      ],
       "additionalProperties": false,
       "properties": {
         "pattern": {
@@ -187,7 +298,9 @@
     "ClassifierConfig": {
       "type": "object",
       "description": "LLM-based classifier that inspects user prompts and selects a tier before falling back to regex rules. Set 'enabled: false' to use regex-only routing.",
-      "required": ["model"],
+      "required": [
+        "model"
+      ],
       "additionalProperties": false,
       "properties": {
         "enabled": {
@@ -197,7 +310,7 @@
         },
         "model": {
           "type": "string",
-          "description": "Model pattern for the classifier. Use the cheapest model you trust — each classification costs tokens. Example: 'ollama/qwen2.5-coder:latest'"
+          "description": "Model pattern for the classifier. Use the cheapest model you trust \u2014 each classification costs tokens. Example: 'ollama/qwen2.5-coder:latest'"
         },
         "endpoint": {
           "type": "string",
@@ -205,7 +318,11 @@
         },
         "method": {
           "type": "string",
-          "enum": ["direct", "subprocess", "auto"],
+          "enum": [
+            "direct",
+            "subprocess",
+            "auto"
+          ],
           "description": "How to invoke the classifier. 'direct' uses a fast OpenAI-compatible HTTP call (needs compatible API). 'subprocess' spawns a fresh pi CLI (slower but supports any provider). 'auto' tries direct first, falls back to subprocess.",
           "default": "auto"
         },
@@ -213,7 +330,7 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 100,
-          "description": "Max output tokens for the classifier. Keep it low — only need the category name back.",
+          "description": "Max output tokens for the classifier. Keep it low \u2014 only need the category name back.",
           "default": 20
         },
         "temperature": {

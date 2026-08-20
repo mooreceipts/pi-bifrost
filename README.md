@@ -160,7 +160,7 @@ Narrow discovery scope when needed:
 | `/bifrost` | Dashboard with mode, model, and quick actions |
 | `/bifrost init` | Probe models and generate config (shows tier breakdown, errors, and model list before writing) |
 | `/bifrost on` / `off` | Enable or disable routing |
-| `/bifrost pin` / `unpin` | Lock current model for this session (`Ctrl+Delete` toggles) |
+| `/bifrost pin` / `unpin` | Lock current model for this session (see `keys` config for shortcuts) |
 | `/bifrost silence` / `unsilence` | Suppress or restore console output |
 | `/bifrost preview <prompt>` | See model routing, thinking level, and concise reasons without sending |
 | `/bifrost reload` | Reload config after manual edits |
@@ -240,6 +240,14 @@ Minimal config after `init`:
   }
 }
 ```
+
+Shortcuts are machine-local and unbound by default — Pi's extension API takes literal keys, not remappable action ids, so keyboard layouts stay a per-machine concern:
+
+```json
+{ "keys": { "unpin": "ctrl+delete" } }
+```
+
+Manual model selection already pins Bifrost, so a separate `pin` key is usually unnecessary. Pick keys the host does not reserve (`shift+tab`, `ctrl+c/d/l/o/t`, and the model-cycle keys are reserved). Reserved keys are skipped with a startup diagnostic.
 
 Prompt-derived thinking is disabled by default. Set `"thinking": { "mode": "advisory" }` to log recommendations without changing Pi's level, or use `"mode": "apply"` to opt into automatic level changes. Manual thinking-level changes pin the feature for the session. See the [full config reference](docs/) and [examples/](examples/) for advanced options including routing rules, classifier setup, reliability tuning, and quota-aware routing.
 

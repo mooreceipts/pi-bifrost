@@ -2,6 +2,17 @@
 
 All notable changes to pi-bifrost are documented here.
 
+## 4.2.0
+
+### Added
+- `keys` config binds optional pin and unpin shortcuts. Both are unbound by default.
+
+### Changed
+- **Breaking:** `Ctrl+Delete` is no longer hardcoded for unpin. Pi's extension API accepts literal keys only, so bindings now live in machine-local `bifrost.json` instead of the published package. Add `"keys": { "unpin": "ctrl+delete" }` to restore the previous behaviour.
+
+### Fixed
+- Model switches no longer pin thinking when Pi delivers their concurrent `thinking_level_select` event after `model_select`.
+
 ## 4.1.9
 
 ### Fixed

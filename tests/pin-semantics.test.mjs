@@ -1,6 +1,5 @@
-// Pin semantics: model switch (ctrl+p) must NOT pin thinking.
-// Pi re-clamps thinking during a model switch, emitting thinking_level_select
-// AFTER agent.state.model is already the new model but BEFORE model_select.
+// Pin semantics: model switching must NOT pin thinking, regardless of whether Pi's
+// concurrent thinking_level_select handler reaches Bifrost before or after model_select.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { dirname, join } from "node:path";
@@ -60,24 +59,25 @@ function harness() {
 }
 
 describe("pin semantics", () => {
-  it("shift+tab (same model) pins thinking; ctrl+p model switch does not", async () => {
+  it("a same-model change pins thinking; a model switch does not", async () => {
     const { handlers, ctx, thinkingPinned } = harness();
     await handlers.get("session_start")({}, ctx("a"));
 
-    // shift+tab: thinking changes under the same model → pinned.
+    // A manual thinking change under the same model → pinned.
     await handlers.get("thinking_level_select")({ level: "high" }, ctx("a"));
     assert.ok(thinkingPinned(), "manual thinking cycle should pin thinking");
 
-    // ctrl+delete: unpin both.
-    await handlers.get("thinking_level_select")({ level: "medium" }, ctx("a"));
-    // ctrl+p: model already switched, thinking re-clamped → must NOT pin thinking.
+    // Model already switched, thinking re-clamped → must NOT pin thinking.
     const fresh = harness();
     await fresh.handlers.get("session_start")({}, fresh.ctx("a"));
     await fresh.handlers.get("thinking_level_select")({ level: "low" }, fresh.ctx("b"));
     await fresh.handlers.get("model_select")({}, fresh.ctx("b"));
+    // Concurrent delivery can arrive late, after model_select.
+    await fresh.handlers.get("thinking_level_select")({ level: "medium" }, fresh.ctx("b"));
     assert.equal(fresh.thinkingPinned(), false, "model switch must not pin thinking");
 
-    // ...and thinking is still pinnable afterwards on the new model.
+    // ...and thinking is still pinnable after the switch event batch settles.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     await fresh.handlers.get("thinking_level_select")({ level: "high" }, fresh.ctx("b"));
     assert.ok(fresh.thinkingPinned(), "thinking pin still works after a model switch");
   });

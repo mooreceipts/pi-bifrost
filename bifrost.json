@@ -3,12 +3,12 @@
   "enabled": true,
   "silent": false,
   "default": "general",
-  "strategy": "first",
+  "strategy": "subscription_balance",
 
   "categoryStrategies": {
-    "quick": "first",
-    "general": "first",
-    "frontier": "first"
+    "quick": "fastest",
+    "general": "subscription_balance",
+    "frontier": "subscription_balance"
   },
 
   "classifier": {

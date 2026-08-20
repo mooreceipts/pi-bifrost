@@ -34,8 +34,18 @@ export interface ThinkingConfig {
   byTier?: Record<string, ThinkingLevel>;
 }
 
+/** Per-machine key bindings. Pi's extension API takes literal keys, not remappable action ids,
+ *  so keys live in bifrost.json (machine-local) instead of being hardcoded here. */
+export interface KeysConfig {
+  /** Pin Bifrost to the current model. Unset = not bound. */
+  pin?: string;
+  /** Unpin model + thinking. Unset = not bound. */
+  unpin?: string;
+}
+
 export interface BifrostConfig {
   enabled?: boolean;
+  keys?: KeysConfig;
   silent?: boolean;
   default?: string;
   strategy?: RoutingStrategy;

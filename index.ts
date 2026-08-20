@@ -164,10 +164,10 @@ export default function bifrostExtension(pi: ExtensionAPI) {
   });
   let selfSelecting = false;
   let selfSettingThinkingLevel: ThinkingLevel | undefined;
-  // Model the last thinking_level_select was seen under. Pi sets agent.state.model
-  // BEFORE re-clamping thinking on a model switch, so a thinking_level_select whose
-  // ctx.model differs from this is a model-switch side effect, not a user pin.
+  // Pi emits thinking/model events concurrently during a model switch. Ignore thinking
+  // changes until that switch's event batch settles; only later changes are manual pins.
   let lastSeenModel: string | undefined;
+  let settlingModel: string | undefined;
   const thinkingSession = new ThinkingSession();
   const runtimeReliability = new RuntimeReliabilityTracker();
   const sessionContext = new SessionRoutingContext();
@@ -289,7 +289,25 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     },
   });
 
-  pi.registerShortcut("ctrl+delete", {
+  // Keys are machine-local (bifrost.json "keys"), never hardcoded: layouts and host
+  // keybindings differ per machine, and Pi's extension API takes literal keys only.
+  // Keys reserved by the host (e.g. shift+tab) are skipped with a startup diagnostic.
+  if (state.config.keys?.pin) {
+    pi.registerShortcut(state.config.keys.pin as Parameters<typeof pi.registerShortcut>[0], {
+      description: "Pin Bifrost to the current model",
+      handler: async (ctx) => {
+        state.pinned = true;
+        state.saveModeState();
+        lastSeenModel = modelKey(ctx.model);
+        syncBifrostModeStatus(ctx, state);
+        clearBifrostWidgets(ctx);
+        log(ctx, `Bifrost pinned to ${modelKey(ctx.model)}`);
+      },
+    });
+  }
+
+  if (state.config.keys?.unpin) {
+    pi.registerShortcut(state.config.keys.unpin as Parameters<typeof pi.registerShortcut>[0], {
     description: "Unpin Bifrost model and thinking",
     handler: async (ctx) => {
       const wasPinned = state.pinned || state.thinkingPinned;
@@ -300,7 +318,8 @@ export default function bifrostExtension(pi: ExtensionAPI) {
       clearBifrostWidgets(ctx);
       log(ctx, wasPinned ? "Bifrost unpinned (model + thinking)" : "Bifrost already unpinned");
     },
-  });
+    });
+  }
 
   pi.on("session_start", async (_event, ctx) => {
     state.thinkingLevel = pi.getThinkingLevel();
@@ -374,10 +393,9 @@ export default function bifrostExtension(pi: ExtensionAPI) {
       return;
     }
     state.thinkingLevel = event.level;
-    if (modelKey(ctx.model) !== lastSeenModel) {
-      // Side effect of a model switch (ctrl+p / picker / bifrost routing): don't pin.
-      lastSeenModel = modelKey(ctx.model);
-      debug("bifrost", "thinking_clamped_on_model_switch", { level: event.level, model: lastSeenModel });
+    const currentModel = modelKey(ctx.model);
+    if (currentModel !== lastSeenModel || currentModel === settlingModel) {
+      debug("bifrost", "thinking_clamped_on_model_switch", { level: event.level, model: currentModel });
       return;
     }
     state.thinkingPinned = true;
@@ -388,9 +406,15 @@ export default function bifrostExtension(pi: ExtensionAPI) {
 
   pi.on("model_select", async (_event, ctx) => {
     setBifrostSilent(ctx, state.silent);
+    const selectedModel = modelKey(ctx.model);
+    settlingModel = selectedModel;
+    setTimeout(() => {
+      if (settlingModel !== selectedModel) return;
+      lastSeenModel = selectedModel;
+      settlingModel = undefined;
+    }, 0);
     if (selfSelecting) {
       selfSelecting = false;
-      lastSeenModel = modelKey(ctx.model);
       return;
     }
     if (!state.enabled) return;
@@ -407,15 +431,14 @@ export default function bifrostExtension(pi: ExtensionAPI) {
     }
 
     sessionContext.reset();
-    lastSeenModel = modelKey(ctx.model);
     state.pinned = true;
     state.saveModeState();
-    debug("bifrost", "model_select", { model: modelKey(ctx.model) });
+    debug("bifrost", "model_select", { model: selectedModel });
     syncBifrostModeStatus(ctx, state);
     clearBifrostWidgets(ctx);
     logOverwrite(
       ctx,
-      `Model manually changed to ${modelKey(ctx.model)}; Bifrost pinned.`,
+      `Model manually changed to ${selectedModel}; Bifrost pinned.`,
     );
   });
 
