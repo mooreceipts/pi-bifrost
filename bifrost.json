@@ -6,17 +6,15 @@
   "strategy": "subscription_balance",
 
   "categoryStrategies": {
-    "quick": "fastest",
+    "quick": "subscription_preferred",
     "general": "subscription_balance",
     "frontier": "subscription_balance"
   },
 
   "classifier": {
     "enabled": true,
-    "model": "opencode/deepseek-v4-flash-free",
+    "model": "openai-codex/gpt-5.4-mini",
     "method": "auto",
-    "maxTokens": 20,
-    "temperature": 0,
     "fallbackToRegex": true
   },
 
